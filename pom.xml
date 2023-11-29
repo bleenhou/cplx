@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>eth.bram</groupId>
+	<artifactId>cplx</artifactId>
+	<version>0.0.1</version>
+    <packaging>pom</packaging>
+	<name>Cplx</name>
+	<description>Complex polynomial routines</description>
+
+	<properties>
+	    <maven.compiler.release>17</maven.compiler.release>
+    	<maven.compiler.source>17</maven.compiler.source>
+    	<maven.compiler.target>17</maven.compiler.target>
+    	<jcuda.version>11.8.0</jcuda.version>  	
+    	<junit.version>5.10.0</junit.version>
+    	<surefire.version>3.1.2</surefire.version>
+	</properties>
+	
+ 	<modules>
+ 		<module>cplx-cuda-binders</module>
+ 		<module>cplx-polynomial-routines</module>
+    </modules>
+ 
+     <dependencyManagement>
+		<dependencies>
+			
+		    <dependency>
+				<groupId>eth.bram</groupId>
+				<artifactId>cplx-cuda-binders</artifactId>
+			    <version>${project.version}</version>
+		    </dependency>
+		    <dependency>
+				<groupId>eth.bram</groupId>
+				<artifactId>cplx-polynomial-routines</artifactId>
+			    <version>${project.version}</version>
+		    </dependency>
+
+		    <!-- Dependencies -->
+		    <dependency>
+				<groupId>org.jcuda</groupId>
+				<artifactId>jcuda</artifactId>
+				<version>${jcuda.version}</version>
+			</dependency>
+
+			<!-- Test dependencies -->
+			<dependency>
+		    	<groupId>org.junit.jupiter</groupId>
+		        <artifactId>junit-jupiter-engine</artifactId>
+		        <version>${junit.version}</version>
+		        <scope>test</scope>
+			</dependency>
+		</dependencies>
+    </dependencyManagement>
+
+    <build>
+		<pluginManagement>
+		    <plugins>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-surefire-plugin</artifactId>	
+					<version>${surefire.version}</version>	
+				</plugin>
+			</plugins>
+		</pluginManagement>
+	</build>
+
+</project>
