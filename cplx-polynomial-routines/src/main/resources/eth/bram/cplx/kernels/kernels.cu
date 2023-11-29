@@ -106,28 +106,6 @@ extern "C" __global__ void fftPreparePolynomial(float * in, float * out, int rou
 }
 
 /**
- * Populates the values in a nice order for the reverse FFT computation.
- * Example layout for an 0 1 2 3 4 5 6 7 polynomial : 0 4 2 6 1 5 3 7
- * 
- * @param  in data to order for FFT
- * @param  out data ordered for FFT
- * @params rounds number of fft rounds which will be run.
- */
-extern "C" __global__ void fftPrepareComplex(float2 * in, float2 * out, int rounds) {
-
-	// Offset buffer according to which slice we will be working on
-	const int size = (1 << rounds);
-	const int idx = GLOBAL_IDX / size;
-	out += size * idx;
-	in  += size * idx;
-	
-	// Order for FFT
-	const int idxInSlice = GLOBAL_IDX % size;
-	const int destIdx = __brev(idxInSlice) >> (32 - rounds);
-	out[destIdx] 	 = in[idxInSlice];
-}
-
-/**
 * FFT kernel using Cooley–Tukey method. This kernel is run log2(n) times.
 * @param inOut : data buffer, contains the current state of the FFT computation.
 * @param size : size of the subset we are processing.
@@ -152,6 +130,41 @@ extern "C" __global__ void fft(float2 * inOut, int size) {
 	w = mul(w, r);
     inOut[k] = add(q, w);
     inOut[k + size / 2] = sub(q, w);
+}
+
+/**
+* First iteration of the FFT kernel using Cooley–Tukey method.
+* 
+* We are reorganizing the FFT data with this first kernel, we read at parity split offsets.
+* Example read for an 0 1 2 3 4 5 6 7 polynomial : 0 4 2 6 1 5 3 7
+* 
+* @param in : contains the intial state of the FFT computation.
+* @param out : contains the next state of the FFT computation.
+* @param rounds : number of rounds in this FFT.
+*/
+extern "C" __global__ void fftFirst(float2 * in, float2 * out, int rounds) {
+	    
+	const int size = (1 << rounds);
+	const int idx = GLOBAL_IDX / size;
+//	in  += size * idx;
+	const int destIdxRev = __brev((GLOBAL_IDX * 2 % size) << (32 - rounds));
+	
+	// Position buffer on the correct read a write position.
+	// We read at parity split offset, and write at standard FFT offsets
+	in  += destIdxRev;
+	out += GLOBAL_IDX * 2;
+
+	// Compute kth root of unity
+    float2 w;
+    w.x = cos(0.0);
+    w.y = sin(0.0);
+    
+    // Compute and propagate for next iteration
+	float2 q = in[0];
+	float2 r = in[size / 2];
+	w = mul(w, r);
+	out[0] = add(q, w);
+    out[1] = sub(q, w);
 }
 
 /**

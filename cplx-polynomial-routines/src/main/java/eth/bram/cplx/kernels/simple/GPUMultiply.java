@@ -42,15 +42,15 @@ public class GPUMultiply {
 	private final GPUKernel fftPreparePolynomialKernel;
 	
 	/**
-	 * FFT preparation kernel (Complex version, no expansion)
-	 */
-	private final GPUKernel fftPrepareComplexKernel;
-	
-	/**
 	 * FFT kernel
 	 */
 	private final GPUKernel fftKernel;
 
+	/**
+	 * FFT First kernel
+	 */
+	private final GPUKernel fftFirstKernel;
+	
 	/**
 	 * Multiply kernel
 	 */
@@ -126,11 +126,11 @@ public class GPUMultiply {
 		multiplyKernel.setArg(1, outMul.pointer());
 		multiplyKernel.setArg(2, polynomialSize);
 		
-		// FFT Prepare complex kernel and parameters
-		this.fftPrepareComplexKernel = program.buildKernel("fftPrepareComplex");
-		fftPrepareComplexKernel.setArg(0, outMul.pointer());
-		fftPrepareComplexKernel.setArg(1, inOutFFT.pointer());
-		fftPrepareComplexKernel.setArg(2, rounds());
+		// FFT first round
+		this.fftFirstKernel = program.buildKernel("fftFirst");
+		fftFirstKernel.setArg(0, outMul.pointer());
+		fftFirstKernel.setArg(1, inOutFFT.pointer());
+		fftFirstKernel.setArg(2, rounds());
 		
 		// Finalize multiplication
 		this.finalizeMultiplicationKernel = program.buildKernel("finalizeMultiplication");
@@ -169,11 +169,10 @@ public class GPUMultiply {
 		// Perform multiplication
 		multiplyKernel.run(polynomialSize);
 		
-		// Prepare data for reverse FFT
-		fftPrepareComplexKernel.run(polynomialSize);
-		
 		// Reverse FFT on the result of the multiplication
-		for (int i = 1 ; i <= rounds ; ++i) {
+		// The first kernel is fetching data in a different place.
+		fftFirstKernel.run(polynomialSize / 2);
+		for (int i = 2 ; i <= rounds ; ++i) {
 			fftKernel.setArg(1, 1 << i);
 			fftKernel.run(polynomialSize / 2);
 		}
