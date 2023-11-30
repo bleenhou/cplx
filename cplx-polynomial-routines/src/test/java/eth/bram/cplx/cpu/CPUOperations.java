@@ -1,8 +1,7 @@
 package eth.bram.cplx.cpu;
 
 import java.nio.ByteBuffer;
-
-import eth.bram.cplx.ComplexPolynomial;
+import java.nio.ByteOrder;
 
 /**
  * CPU implementation of the operations over the complex polynomial ring.
@@ -13,9 +12,12 @@ public class CPUOperations {
 	 * Add two {@link ComplexPolynomial}.
 	 */
 	public static ComplexPolynomial add(ComplexPolynomial p1, ComplexPolynomial p2) {
-		final float [] real = add(p1.re(), p2.re());
-		final float [] imaginary = add(p1.im(), p2.im());
-		return new ComplexPolynomial(real, imaginary);
+		final float [] data = add(p1.data(), p2.data());
+		final ByteBuffer sum = ByteBuffer.allocate(data.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+		for (int i = 0 ; i < data.length ; ++i) {
+			sum.putFloat(data[i]);
+		}
+		return new ComplexPolynomial(sum);
 	}
 	
 	/**
@@ -86,11 +88,11 @@ public class CPUOperations {
 	 * Add two polynomials
 	 */
 	private static float [] add (ByteBuffer lhs, ByteBuffer rhs) {
-		final float [] res = new float [lhs.capacity() / Float.BYTES];
-		for (int i = 0 ; i < res.length ; ++i) {
-			res[i] += lhs.getFloat(i * Float.BYTES) + rhs.getFloat(i * Float.BYTES);
+		final float [] r = new float [lhs.capacity() / Float.BYTES];
+		for (int i = 0 ; i < r.length ; ++i) {
+			r[i] += lhs.getFloat(i * Float.BYTES) + rhs.getFloat(i * Float.BYTES);
 		}
-		return res;
+		return r;
 	}
 	
 	/**

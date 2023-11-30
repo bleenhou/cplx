@@ -1,5 +1,6 @@
 package eth.bram.cplx;
 
+import eth.bram.cplx.cpu.ComplexPolynomial;
 import eth.bram.cplx.kernels.matrix.GPUMatrixAdd;
 import eth.bram.cplx.kernels.matrix.GPUMatrixMultiply;
 import eth.bram.cplx.kernels.simple.GPUAdd;

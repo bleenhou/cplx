@@ -1,8 +1,8 @@
 package eth.bram.cplx.main;
 
-import eth.bram.cplx.ComplexPolynomial;
 import eth.bram.cplx.ComplexPolynomialGenarator;
 import eth.bram.cplx.ComplexPolynomialOperations;
+import eth.bram.cplx.cpu.ComplexPolynomial;
 
 public class Main {
 

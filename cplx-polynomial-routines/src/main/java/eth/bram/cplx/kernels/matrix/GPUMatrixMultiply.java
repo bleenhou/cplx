@@ -8,11 +8,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import eth.bram.cplx.ComplexPolynomial;
 import eth.bram.cplx.GPUBuffer;
 import eth.bram.cplx.GPUContext;
 import eth.bram.cplx.GPUKernel;
 import eth.bram.cplx.GPUProgram;
+import eth.bram.cplx.cpu.ComplexPolynomial;
 import eth.bram.cplx.kernels.CudaSource;
 
 /**
@@ -48,6 +48,11 @@ public class GPUMatrixMultiply {
 	private final GPUKernel fftPreparePolynomialKernelB;
 	
 	/**
+	 * FFT preparation kernel (Complex version, no padding)
+	 */
+	private final GPUKernel fftPrepareComplexKernel;
+	
+	/**
 	 * FFT kernel for A
 	 */
 	private final GPUKernel fftKernelA;
@@ -56,11 +61,6 @@ public class GPUMatrixMultiply {
 	 * FFT kernel for B
 	 */
 	private final GPUKernel fftKernelB;
-	
-	/**
-	 * FFT kernel for reverse FFT
-	 */
-	private final GPUKernel fftFistKernelReverse;
 	
 	/**
 	 * FFT kernel for reverse FFT
@@ -121,12 +121,12 @@ public class GPUMatrixMultiply {
 		this.fftKernelA = program.buildKernel("fft");
 		this.fftKernelB = program.buildKernel("fft");
 		this.fftKernelReverse = program.buildKernel("fft");
-		this.fftFistKernelReverse = program.buildKernel("fftFirst");
 		this.multiplyMatrixKernel = program.buildKernel("multiplyMatrix");
+		this.fftPrepareComplexKernel = program.buildKernel("fftPrepareComplex");
 		this.finalizeMultiplicationKernel = program.buildKernel("finalizeMultiplication");
 
 		// Set fixed parameters
-		fftFistKernelReverse.setArg(2, rounds());
+		fftPrepareComplexKernel.setArg(2, rounds());
 		fftPreparePolynomialKernelA.setArg(2, rounds());
 		fftPreparePolynomialKernelB.setArg(2, rounds());
 		finalizeMultiplicationKernel.setArg(2, this.polynomialSize);
@@ -171,8 +171,7 @@ public class GPUMatrixMultiply {
 		fftKernelB.setArg(0, BFFT.pointer());
 		fftPreparePolynomialKernelA.setArg(1, AFFT.pointer());
 		fftPreparePolynomialKernelB.setArg(1, BFFT.pointer());
-		fftKernelReverse.setArg(0, FFTReverse.pointer());
-		fftFistKernelReverse.setArg(1, FFTReverse.pointer());
+		fftPrepareComplexKernel.setArg(1, FFTReverse.pointer());
 		finalizeMultiplicationKernel.setArg(0, FFTReverse.pointer());
 		
 		// Buffer for multiplication 
@@ -180,7 +179,8 @@ public class GPUMatrixMultiply {
 		multiplyMatrixKernel.setArg(0, AFFT.pointer());
 		multiplyMatrixKernel.setArg(1, BFFT.pointer());
 		multiplyMatrixKernel.setArg(2, ccOut.pointer());
-		fftFistKernelReverse.setArg(0, ccOut.pointer());
+		fftKernelReverse.setArg(0, FFTReverse.pointer());
+		fftPrepareComplexKernel.setArg(0, ccOut.pointer());
 		
 		// Result buffer
 		final GPUBuffer result = ctx.createBuffer(ByteBuffer.allocate(rowsPerSlice * columnPerSlice * polynomialSizeInBytes).order(ByteOrder.LITTLE_ENDIAN));
@@ -241,10 +241,12 @@ public class GPUMatrixMultiply {
 				multiplyMatrixKernel.setArg(6, aWidth);
 				multiplyMatrixKernel.run(columnCount * rowCount * polynomialSize);
 				
+				// Order data for reverse FFT
+				fftPrepareComplexKernel.run(columnCount * rowCount * polynomialSize);
+				
 				// Reverse FFT on the result of the multiplication
 				final int rounds = rounds();
-				fftFistKernelReverse.run(columnCount * rowCount * polynomialSize / 2);
-				for (int k = 2 ; k <= rounds ; ++k) {
+				for (int k = 1 ; k <= rounds ; ++k) {
 					fftKernelReverse.setArg(1, 1 << k);
 					fftKernelReverse.run(columnCount * rowCount * polynomialSize / 2);
 				}

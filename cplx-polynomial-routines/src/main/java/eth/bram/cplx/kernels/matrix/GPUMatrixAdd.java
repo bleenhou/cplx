@@ -7,11 +7,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import eth.bram.cplx.ComplexPolynomial;
 import eth.bram.cplx.GPUBuffer;
 import eth.bram.cplx.GPUContext;
 import eth.bram.cplx.GPUKernel;
 import eth.bram.cplx.GPUProgram;
+import eth.bram.cplx.cpu.ComplexPolynomial;
 import eth.bram.cplx.kernels.CudaSource;
 
 /**
@@ -119,11 +119,9 @@ public class GPUMatrixAdd {
 			int pos = 0;
 			for (int j = from ; j < to ; ++j) {
 				for (int k = 0 ; k < A[j].length ; ++k) {
-					final ByteBuffer re = ByteBuffer.allocate(polynomialSizeInBytes / 2).order(ByteOrder.LITTLE_ENDIAN);
-					final ByteBuffer im = ByteBuffer.allocate(polynomialSizeInBytes / 2).order(ByteOrder.LITTLE_ENDIAN);
-					re.put(res.buffer().slice(pos, polynomialSizeInBytes / 2));
-					im.put(res.buffer().slice(pos + polynomialSizeInBytes / 2, polynomialSizeInBytes / 2));
-					c[j][k] = new ComplexPolynomial(re, im);
+					final ByteBuffer data = ByteBuffer.allocate(polynomialSizeInBytes).order(ByteOrder.LITTLE_ENDIAN);
+					data.put(res.buffer().slice(pos, polynomialSizeInBytes));
+					c[j][k] = new ComplexPolynomial(data);
 					pos += polynomialSizeInBytes;
 				}
 			}
@@ -140,7 +138,7 @@ public class GPUMatrixAdd {
 		b.buffer().rewind();
 		for (int i = from ; i < to ; ++i) {
 			for (int j = 0 ; j < A[i].length ; ++j) {
-				b.buffer().put(A[i][j].re()).put(A[i][j].im());
+				b.buffer().put(A[i][j].data());
 			}
 		}
 		b.write();
