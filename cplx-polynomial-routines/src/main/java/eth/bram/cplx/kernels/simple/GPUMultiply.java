@@ -140,18 +140,16 @@ public class GPUMultiply {
 		inPolynomials.buffer().put(a.data()).put(b.data()).rewind();
 		inPolynomials.write();
 		
-		// Prepare data for FFT
-		final int rounds = rounds() + 1; // + 1 because we handle 2 polynomials of size 2^2n
-		runFFT(rounds, inPolynomials, polynomialSize, polynomialSize * 2, polynomialSize * 2);
+		// Prepare data for FFT (rounds + 1 because we handle 2 polynomials of size 2^2n)
+		runFFT(rounds() + 1, inPolynomials, polynomialSize, polynomialSize * 2, polynomialSize * 2);
 		
 		// Perform multiplication
 		multiplyKernel.run(polynomialSize * 2);
 		
 		// Run reverse FFT - Only first half (lower powers of n) of it is needed
-		runFFT(rounds, outMul, polynomialSize * 2, polynomialSize * 2, polynomialSize);
+		runFFT(rounds() + 1, outMul, polynomialSize * 2, polynomialSize * 2, polynomialSize);
 		
-		// Finalize multiplication and compress result.
-		// This kernel brings us back from 2n polynomials to n.
+		// Finalize multiplication and compress result. This kernel brings us back from 2n polynomials to n.
 		finalizeMultiplicationKernel.run(polynomialSize);
 		
 		// Read and return result
