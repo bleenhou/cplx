@@ -218,5 +218,9 @@ extern "C" __global__ void multiplyMatrix(float2 * A, float2 * B, float2 * out, 
  * @param out buffer to write multiplication result to (size n)
  */
 extern "C" __global__ void finalizeMultiplication(float2 * in, float2 * out, int polynomialSize) {
-	out[GLOBAL_IDX] = scale(conjugate(in[GLOBAL_IDX]), 1.0f / polynomialSize);
+	const int polynomialIdx = GLOBAL_IDX / polynomialSize;
+	const int idxInPolynomial = GLOBAL_IDX % polynomialSize;
+	in += polynomialIdx * polynomialSize * 2;
+	out += polynomialIdx * polynomialSize;
+	out[idxInPolynomial] = scale(conjugate(in[idxInPolynomial]), 1.0f / (polynomialSize * 2));
 }

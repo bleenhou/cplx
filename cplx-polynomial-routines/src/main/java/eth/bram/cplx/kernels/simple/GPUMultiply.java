@@ -122,7 +122,7 @@ public class GPUMultiply {
 		this.finalizeMultiplicationKernel = program.buildKernel("finalizeMultiplication");
 		finalizeMultiplicationKernel.setArg(0, inOutFFT.pointer());
 		finalizeMultiplicationKernel.setArg(1, inPolynomials.pointer());
-		finalizeMultiplicationKernel.setArg(2, polynomialSize * 2);
+		finalizeMultiplicationKernel.setArg(2, polynomialSize);
 	}
 
 	/**
@@ -141,13 +141,14 @@ public class GPUMultiply {
 		inPolynomials.write();
 		
 		// Prepare data for FFT (rounds + 1 because we handle 2 polynomials of size 2^2n)
-		runFFT(rounds() + 1, inPolynomials, polynomialSize, polynomialSize * 2, polynomialSize * 2);
+		final int polynomialCount = 2;
+		runFFT(rounds() + 1, inPolynomials, polynomialSize, polynomialSize * 2, polynomialSize * polynomialCount, polynomialSize * polynomialCount);
 		
-		// Perform multiplication
+		// Perform multiplication on one polynomial size which contains 2 elements (re + im)
 		multiplyKernel.run(polynomialSize * 2);
 		
 		// Run reverse FFT - Only first half (lower powers of n) of it is needed
-		runFFT(rounds() + 1, outMul, polynomialSize * 2, polynomialSize * 2, polynomialSize);
+		runFFT(rounds() + 1, outMul, polynomialSize * 2, polynomialSize * 2, polynomialSize * 2, polynomialSize);
 		
 		// Finalize multiplication and compress result. This kernel brings us back from 2n polynomials to n.
 		finalizeMultiplicationKernel.run(polynomialSize);
@@ -157,7 +158,7 @@ public class GPUMultiply {
 		return new ComplexPolynomial(inPolynomials.buffer().slice(0, a.data().capacity()).order(ByteOrder.LITTLE_ENDIAN));
 	}
 
-	private int runFFT(int rounds, GPUBuffer input, int objectInputSize, int objectOutputsize, int fftRunsize) {
+	private int runFFT(int rounds, GPUBuffer input, int objectInputSize, int objectOutputsize, int prepareRunsize, int fftRunsize) {
 		
 		// How many items we must add (for n to 2n expansion)
 		final int fill = (int)(Math.log(objectOutputsize/objectInputSize) / Math.log(2));
@@ -169,7 +170,7 @@ public class GPUMultiply {
 		fftPrepareKernel.setArg(2, rounds - fill);
 		fftPrepareKernel.setArg(3, objectInputSize);
 		fftPrepareKernel.setArg(4, fill);
-		fftPrepareKernel.run(objectOutputsize);
+		fftPrepareKernel.run(prepareRunsize);
 		
 		// Run FFT kernels - log2 rounds.
 		for (int i = 1 ; i <= rounds ; ++i) {
