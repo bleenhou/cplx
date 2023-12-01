@@ -67,45 +67,6 @@ extern "C" __global__ void add(float2 * A, float2 * B, float2 * res)
 }
 
 /**
- * Populates the polynomial in a nice order for the FFT GPU computation.
- * Example layout for an 0 1 2 3 4 5 6 7 polynomial : 0 4 2 6 1 5 3 7
- * 
- * This version extends polynomials from n to 2n to be ready to accomodate for multiplication result.
- * 
- * @param  in set of polynomials - Their size is 2^(rounds - 1).
- * @param  out ordered polynomials ready for FFT - Their size is 2^(rounds).
- * @params rounds number of fft rounds which will be run.
- */
-extern "C" __global__ void fftPreparePolynomial(float * in, float * out, int rounds) {
-
-	// Offset buffer according to which polynomial we will be working on
-	const int polynomialSize = (1 << rounds); 			  	// This is the expanded 2^(2n) polynomial size
-	const int actualPolynomialSize = polynomialSize >> 1; 	// This is the input 2^n polynomial size
-	const int polynomialIdx = GLOBAL_IDX / polynomialSize;	// Index is based on polynomialSize
-	
-	// Offset input buffer by polynomialSize
-	const float * re  = in + polynomialSize * polynomialIdx;
-	const float * im  = re + actualPolynomialSize;
-	
-	// Offset output buffer by polynomialSize * 2 (polynomials are twice as big)
-	out += polynomialIdx * (polynomialSize * 2);
-	
-	// Order polynomial for FFT
-	const int idxInPolynomial = GLOBAL_IDX % polynomialSize;
-	const int destIdx = __brev(idxInPolynomial) >> (32 - rounds);
-	
-	// Write polynomial data, or zero if part for the coeficients between 2^n and 2^(2n)
-	// TODO : turn branchless
-	if (idxInPolynomial < actualPolynomialSize) {
-		out[2 * destIdx] = 		re[idxInPolynomial];
-		out[2 * destIdx + 1] =  im[idxInPolynomial];
-	} else {
-		out[2 * destIdx] = 0.0;
-		out[2 * destIdx + 1] = 0.0;
-	}
-}
-
-/**
  * Populates the values in a nice order for the reverse FFT computation.
  * Example layout for an 0 1 2 3 4 5 6 7 polynomial : 0 4 2 6 1 5 3 7
  * 
