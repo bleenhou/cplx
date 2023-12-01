@@ -33,6 +33,12 @@ import eth.bram.cplx.kernels.CudaSource;
 public class GPUMatrixMultiply {
 
 	/**
+	 * MAX_ROWS to process in parallel.
+	 * This value has an impact on the register usage of the multiplication kernel.
+	 */
+	private static final int MAX_ROWS = 16;
+	
+	/**
 	 * GPU context wrapper
 	 */
 	private final GPUContext ctx;
@@ -114,7 +120,7 @@ public class GPUMatrixMultiply {
 		// Create context and kernels
 		// There is one FFT kernel per matrix so that we set arguments once and for all (prevent threading issues setting arguments)
 		this.ctx = GPUContext.create(deviceId);
-		final GPUProgram program = ctx.createProgram(Arrays.asList(CudaSource.getSource("kernels.cu")));
+		final GPUProgram program = ctx.createProgram(Arrays.asList(CudaSource.getSource("kernels.cu").replace("#define MAX_ROWS 8", "#define MAX_ROWS " + MAX_ROWS)));
 		this.fftPrepareKernelA = program.buildKernel("fftPrepareComplex");
 		this.fftPrepareKernelB = program.buildKernel("fftPrepareComplex");
 		this.fftPrepareKernelReverse = program.buildKernel("fftPrepareComplex");
@@ -147,7 +153,8 @@ public class GPUMatrixMultiply {
 		final int polynomialSizeInBytes = polynomialSize * 2 * Float.BYTES;
 		final int lineSize = aWidth * polynomialSizeInBytes;
 		final int columnSize = lineSize; // alias for readability
-		final int rowsPerSlice = Math.min(aHeight, maxBufferSizeA / lineSize);
+		final int rowsPerSlice = Math.min(Math.min(aHeight, maxBufferSizeA / lineSize), MAX_ROWS);
+		System.out.println(rowsPerSlice + " rows per slice");
 		final int columnPerSlice = Math.min(bWidth, maxBufferSizeB / columnSize);
 		if (rowsPerSlice == 0 || columnPerSlice == 0) {
 			throw new IllegalStateException("Window is too small to compute a single result cell");
@@ -230,7 +237,7 @@ public class GPUMatrixMultiply {
 				multiplyMatrixKernel.setArg(4, columnCount);
 				multiplyMatrixKernel.setArg(5, rowCount);
 				multiplyMatrixKernel.setArg(6, aWidth);
-				multiplyMatrixKernel.run(polynomialCount * polynomialSize * 2);
+				multiplyMatrixKernel.run(columnCount * polynomialSize * 2);
 				
 				// Reverse FFT
 				runFFT(rounds() + 1, fftPrepareKernelReverse, fftKernelReverse, ccOut, FFTReverse, 

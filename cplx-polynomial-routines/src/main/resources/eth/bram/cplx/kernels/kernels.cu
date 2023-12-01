@@ -187,28 +187,36 @@ extern "C" __global__ void multiply(float2 * in, float2 * out, int polynomialSiz
 * @param rowCount number of rows we are processing
 * @param width width of a matrix A line (or matrix B column)
 */
+#define MAX_ROWS 8
 extern "C" __global__ void multiplyMatrix(float2 * A, float2 * B, float2 * out, int polynomialSize, int columnCount, int rowCount, int width) {
 	
 	// Offset computation for buffers
 	const int polynomialId = GLOBAL_IDX / polynomialSize;
 	const int polynomialElement = GLOBAL_IDX % polynomialSize;
-	const int line = polynomialId / columnCount;
+
 	const int col =  polynomialId % columnCount;
+	B += col * width * polynomialSize;
 	
-	A += line * width * polynomialSize;
-	B += col  * width * polynomialSize;
+	float2 sums [MAX_ROWS];
+	for (int i = 0 ; i < MAX_ROWS ; ++i) {
+		sums[i].x = 0.0;
+		sums[i].y = 0.0;
+	}
 	
 	// Sum the point to point multiplication
-	float2 sum;
-	sum.x = 0.0;
-	sum.y = 0.0;
 	for (int i = 0 ; i < width ; ++i) {
-		float2 a = A[i * polynomialSize + polynomialElement];
-		float2 b = B[i * polynomialSize + polynomialElement];
-		sum.x += a.x * b.x - a.y * b.y; 
-		sum.y += a.x * b.y + a.y * b.x; 
+		const float2 b = B[i * polynomialSize + polynomialElement];
+		for (int line = 0 ; line < rowCount ; ++line) {
+			float2 a = A[line * width * polynomialSize + i * polynomialSize + polynomialElement];
+			sums[line].x += a.x * b.x - a.y * b.y; 
+			sums[line].y += a.x * b.y + a.y * b.x; 
+		}
 	}
-	out[GLOBAL_IDX] = conjugate(sum);
+	
+	// Store in global
+	for (int line = 0 ; line < rowCount ; ++line) {
+		out[line * polynomialSize * columnCount + col * polynomialSize + polynomialElement] = conjugate(sums[line]);
+	}
 }
 
 /**
