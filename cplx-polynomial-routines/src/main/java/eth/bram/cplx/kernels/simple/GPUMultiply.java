@@ -8,6 +8,7 @@ import java.util.Arrays;
 
 import eth.bram.cplx.GPUBuffer;
 import eth.bram.cplx.GPUContext;
+import eth.bram.cplx.GPUDeviceBuffer;
 import eth.bram.cplx.GPUKernel;
 import eth.bram.cplx.GPUProgram;
 import eth.bram.cplx.cpu.ComplexPolynomial;
@@ -55,11 +56,11 @@ public class GPUMultiply {
 	 * Finalization of the multiplication kernel
 	 */
 	private final GPUKernel finalizeMultiplicationKernel;
-	
+
 	/**
 	 * Polynomials data (input)
 	 */
-	private final GPUBuffer inPolynomials;
+	private final GPUDeviceBuffer inPolynomials;
 	
 	/**
 	 * GPU buffer holding in place FFT data
@@ -97,7 +98,7 @@ public class GPUMultiply {
 		final int polynomialItemSize = 2 * Float.BYTES;
 		
 		// Polynomials are copied in their 2^n form
-		this.inPolynomials = ctx.createBuffer(ByteBuffer.allocate(polynomialSize * 2 * polynomialItemSize).order(LITTLE_ENDIAN));
+		this.inPolynomials = ctx.createDeviceBuffer(polynomialSize * 2 * 2 * polynomialItemSize);
 		
 		// During preparation for the FFT we will expand the 2^n in 2^(2n) form for multiplication, hence the doubling in size
 		this.inOutFFT = ctx.createBuffer(ByteBuffer.allocate(polynomialSize * 2 * 2 * polynomialItemSize).order(LITTLE_ENDIAN));
@@ -132,45 +133,63 @@ public class GPUMultiply {
 	 */
 	public ComplexPolynomial mul(ComplexPolynomial a, ComplexPolynomial b) {
 
+		final int polynomialCount = 2;
+		
 		// Check buffer sizes are correct
 		checkSize(a.data());
 		checkSize(b.data());
 		
 		// Send polynomials to GPU
-		inPolynomials.buffer().put(a.data()).put(b.data()).rewind();
-		inPolynomials.write();
+		inPolynomials.write(0, a.data());
+		inPolynomials.write(a.data().capacity() * 2, b.data());
 		
-		// Prepare data for FFT (rounds + 1 because we handle 2 polynomials of size 2^2n)
-		final int polynomialCount = 2;
-		runFFT(rounds() + 1, inPolynomials, polynomialSize, polynomialSize * 2, polynomialSize * polynomialCount, polynomialSize * polynomialCount);
+		// Prepare data for FFT (2 polynomials of size 2^2n)
+		runFFT(inPolynomials, polynomialSize * 2, polynomialSize * polynomialCount);
 		
 		// Perform multiplication on one polynomial size which contains 2 elements (re + im)
 		multiplyKernel.run(polynomialSize * 2);
 		
 		// Run reverse FFT - Only first half (lower powers of n) of it is needed
-		runFFT(rounds() + 1, outMul, polynomialSize * 2, polynomialSize * 2, polynomialSize * 2, polynomialSize);
+		runFFT(outMul, polynomialSize * 2, polynomialSize);
 		
 		// Finalize multiplication and compress result. This kernel brings us back from 2n polynomials to n.
 		finalizeMultiplicationKernel.run(polynomialSize);
 		
 		// Read and return result
-		inPolynomials.read();
-		return new ComplexPolynomial(inPolynomials.buffer().slice(0, a.data().capacity()).order(ByteOrder.LITTLE_ENDIAN));
+		return new ComplexPolynomial(inPolynomials.read(ByteBuffer.allocate(a.data().capacity()).order(ByteOrder.LITTLE_ENDIAN)));
 	}
 
-	private int runFFT(int rounds, GPUBuffer input, int objectInputSize, int objectOutputsize, int prepareRunsize, int fftRunsize) {
+	private int runFFT(GPUDeviceBuffer input, int objectInputSize, int fftRunsize) {
 		
-		// How many items we must add (for n to 2n expansion)
-		final int fill = (int)(Math.log(objectOutputsize/objectInputSize) / Math.log(2));
+		final int rounds = (int)(Math.log(objectInputSize) / Math.log(2));
 		
 		// Prepare FFT data
 		// TODO : This kernel should be removed and data be read directly in the first step of the FFT
 		fftPrepareKernel.setArg(0, input.pointer());
 		fftPrepareKernel.setArg(1, inOutFFT.pointer());
-		fftPrepareKernel.setArg(2, rounds - fill);
+		fftPrepareKernel.setArg(2, rounds);
 		fftPrepareKernel.setArg(3, objectInputSize);
-		fftPrepareKernel.setArg(4, fill);
-		fftPrepareKernel.run(prepareRunsize);
+		fftPrepareKernel.run(fftRunsize * 2);
+		
+		// Run FFT kernels - log2 rounds.
+		for (int i = 1 ; i <= rounds ; ++i) {
+			fftKernel.setArg(1, 1 << i);
+			fftKernel.run(fftRunsize);
+		}
+		return rounds;
+	}
+	
+	private int runFFT(GPUBuffer input, int objectInputSize, int fftRunsize) {
+				
+		final int rounds = (int)(Math.log(objectInputSize) / Math.log(2));
+		
+		// Prepare FFT data
+		// TODO : This kernel should be removed and data be read directly in the first step of the FFT
+		fftPrepareKernel.setArg(0, input.pointer());
+		fftPrepareKernel.setArg(1, inOutFFT.pointer());
+		fftPrepareKernel.setArg(2, rounds);
+		fftPrepareKernel.setArg(3, objectInputSize);
+		fftPrepareKernel.run(fftRunsize * 2);
 		
 		// Run FFT kernels - log2 rounds.
 		for (int i = 1 ; i <= rounds ; ++i) {
@@ -187,13 +206,6 @@ public class GPUMultiply {
 		if(b.capacity() != polynomialSize * 2 * Float.BYTES) {
 			throw new IllegalArgumentException("Provided buffer does not match the kernel polynomial size");
 		}
-	}
-
-	/**
-	 * Power of two of the polynomial size.
-	 */
-	private int rounds() {
-		return (int)(Math.log(polynomialSize) / Math.log(2));
 	}
 
 	/**

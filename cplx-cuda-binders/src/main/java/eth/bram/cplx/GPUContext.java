@@ -16,6 +16,8 @@ public interface GPUContext {
 	GPUProgram createProgram(List<String> sources);
 
 	GPUBuffer createBuffer(ByteBuffer b);
+	
+	GPUDeviceBuffer createDeviceBuffer(long size);
 
 	void release();
 }

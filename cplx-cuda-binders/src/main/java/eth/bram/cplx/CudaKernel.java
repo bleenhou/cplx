@@ -50,6 +50,10 @@ class CudaKernel implements GPUKernel {
 
 	@Override
 	public void run(long size, Integer localSize) {
+		if(localSize != null && size % localSize != 0) {
+			run(size);
+			return;
+		}
 		final Pointer p = Pointer.to(parameters.values().toArray(new Pointer [parameters.size()]));
 		final int localSz = (int) (localSize == null ? GPUKernel.gcd(size, 32) : localSize);
 		cuLaunchKernel(function, (int) (size / localSz), 1, 1, localSz, 1, 1, 0, stream, p, null);

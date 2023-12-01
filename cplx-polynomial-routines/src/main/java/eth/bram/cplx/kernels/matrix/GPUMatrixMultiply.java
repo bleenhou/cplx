@@ -7,6 +7,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicLong;
 
 import eth.bram.cplx.GPUBuffer;
 import eth.bram.cplx.GPUContext;
@@ -135,6 +136,11 @@ public class GPUMatrixMultiply {
 		finalizeMultiplicationKernel.setArg(2, this.polynomialSize);
 	}
 
+	private static final AtomicLong FFTA_TIMER = new AtomicLong(0L);
+	private static final AtomicLong FFTB_TIMER = new AtomicLong(0L);
+	private static final AtomicLong FFTREV_TIMER = new AtomicLong(0L);
+	private static final AtomicLong MUL_TIMER = new AtomicLong(0L);
+	
 	/**
 	 * Multiplies the matrices A and B
 	 */
@@ -236,12 +242,16 @@ public class GPUMatrixMultiply {
 				multiplyMatrixKernel.setArg(4, columnCount);
 				multiplyMatrixKernel.setArg(5, rowCount);
 				multiplyMatrixKernel.setArg(6, aWidth);
-				multiplyMatrixKernel.run(columnCount * polynomialSize * 2);
+				long then = System.nanoTime();
+				multiplyMatrixKernel.run(columnCount * polynomialSize * 2, 96);
+				MUL_TIMER.addAndGet(System.nanoTime() - then);
 				
 				// Reverse FFT
+				then = System.nanoTime();
 				runFFT(rounds() + 1, fftPrepareKernelReverse, fftKernelReverse, ccOut, FFTReverse, 
 					polynomialSize * 2, polynomialSize * 2, 
 					polynomialCount * polynomialSize * 2, polynomialCount * polynomialSize);
+				FFTREV_TIMER.addAndGet(System.nanoTime() - then);
 				
 				// Finalize multiplication and compress result
 				ensureFinished(resultCopy); // Make sure results of previous slice have been retrieved before overriding buffer
@@ -253,6 +263,14 @@ public class GPUMatrixMultiply {
 		}
 	
 		ensureFinished(resultCopy);
+		
+		System.out.println();
+		System.out.println("FFT(A) : " + FFTA_TIMER.get() / 1000000 + " ms");
+		System.out.println("FFT(B) : " + FFTB_TIMER.get() / 1000000 + " ms");
+		System.out.println("FFT-1(A*B) : " + FFTREV_TIMER.get() / 1000000 + " ms");
+		System.out.println("MUL : " + MUL_TIMER.get() / 1000000 + " ms");
+		System.out.println();
+		
 		pool.shutdown();
 		return c;
 	}
@@ -300,9 +318,11 @@ public class GPUMatrixMultiply {
 	 */
 	private void fftColumns(GPUBuffer polynomials, GPUBuffer BFFT) {
 		final int polynomialCount = (polynomials.buffer().position() / Float.BYTES) / (polynomialSize * 2);
+		long then = System.nanoTime();
 		runFFT(rounds() + 1, fftPrepareKernelB, fftKernelB, polynomials, BFFT, 			// Buffers and input / output for A
 			   polynomialSize, polynomialSize * 2, 										// Prepare with (polynomialSize) input expanded to (polynomialSize * 2)
 			   polynomialSize * polynomialCount, polynomialSize * polynomialCount); 	// Run polynomialSize * polynomialCount prepares and runs
+		FFTB_TIMER.addAndGet(System.nanoTime() - then);
 	}
 	
 	/**
@@ -310,9 +330,11 @@ public class GPUMatrixMultiply {
 	 */
 	private void fftRows(GPUBuffer polynomials, GPUBuffer AFFT) {
 		final int polynomialCount = (polynomials.buffer().position() / Float.BYTES) / (polynomialSize * 2);
+		long then = System.nanoTime();
 		runFFT(rounds() + 1, fftPrepareKernelA, fftKernelA, polynomials, AFFT, 			// Buffers and input / output for A
 			   polynomialSize, polynomialSize * 2, 										// Prepare with (polynomialSize) input expanded to (polynomialSize * 2)
 			   polynomialSize * polynomialCount, polynomialSize * polynomialCount); 	// Run polynomialSize * polynomialCount prepares and runs
+		FFTA_TIMER.addAndGet(System.nanoTime() - then);
 	}
 	
 	/**

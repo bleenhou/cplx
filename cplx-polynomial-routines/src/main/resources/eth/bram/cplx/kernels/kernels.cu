@@ -74,25 +74,37 @@ extern "C" __global__ void add(float2 * A, float2 * B, float2 * res)
  * @param  out data ordered for FFT
  * @params rounds number of fft rounds which will be run.
  */
-extern "C" __global__ void fftPrepareComplex(float2 * in, float2 * out, int rounds, int size, int fill) {
+extern "C" __global__ void fftPrepareComplex(float2 * in, float2 * out, int rounds, int size) {
 
 	// Offset buffer according to which slice we will be working on
 	const int idx = GLOBAL_IDX / size;
 	const int idxInSlice = GLOBAL_IDX % size;
 	in += idx * size;
-	out += idx * size * (1 << fill);
+	out += idx * size;
+	
+	const int destIdx = __brev(idxInSlice) >> (32 - rounds);
+	
+	// Item we are handling in the subset
+	int k = GLOBAL_IDX % (size / 2);
+	
+	// Compute kth root of unity
+    float2 w;
+    float kth = (-2.0f * PI * k) / size;
+    w.x = cos(kth);
+    w.y = sin(kth);
+    
+    // Compute and propagate for next iteration
+	float2 q = inOut[k];
+	float2 r = inOut[k + size / 2];
+	w = mul(w, r);
+    inOut[k] = add(q, w);
+    inOut[k + size / 2] = sub(q, w);
+    
+    
 	
 	// Order for FFT
-	const int destIdx = __brev(idxInSlice) >> (32 - (rounds + fill));
-	out[destIdx] = in[idxInSlice];
-	
-	// Fill padding with zeros
-	float2 zero;
-	zero.x = 0.0;
-	zero.y = 0.0;
-	for (int i = 1 ; i <= fill ; ++i) {
-		out[destIdx + i] = zero;
-	}
+//	const int destIdx = __brev(idxInSlice) >> (32 - rounds);
+//	out[destIdx] = in[idxInSlice];
 }
 
 /**

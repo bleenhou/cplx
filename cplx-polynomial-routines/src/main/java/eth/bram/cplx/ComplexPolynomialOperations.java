@@ -50,7 +50,9 @@ public class ComplexPolynomialOperations {
 	 * @param polynomialSize size of the polynomials this instance will handle.
 	 */
 	public ComplexPolynomialOperations(int polynomialSize) {
-		this(polynomialSize, 128 * 1024 * 1024, 1023 * 1024 * 1024); // Default window size is 128Mb / 1Gb
+		// Default window size is 128Mb / 960Mb
+		// 960Mb is not random. It ensures multiply kernel can run on a 96 local size when windowing, ensuring the fastest memory throughput
+		this(polynomialSize, 128 * 1024 * 1024, 960 * 1024 * 1024); 
 	}
 	
 	/**
