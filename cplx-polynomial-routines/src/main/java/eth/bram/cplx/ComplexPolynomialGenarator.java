@@ -2,6 +2,8 @@ package eth.bram.cplx;
 
 import java.util.Random;
 
+import eth.bram.cplx.cpu.ComplexPolynomial;
+
 /**
  * Generators for polynomials and matrices of polynomials.
  * Generation is deterministic with a fixed RNG seed.

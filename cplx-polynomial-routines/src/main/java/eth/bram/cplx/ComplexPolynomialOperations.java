@@ -1,5 +1,6 @@
 package eth.bram.cplx;
 
+import eth.bram.cplx.cpu.ComplexPolynomial;
 import eth.bram.cplx.kernels.matrix.GPUMatrixAdd;
 import eth.bram.cplx.kernels.matrix.GPUMatrixMultiply;
 import eth.bram.cplx.kernels.simple.GPUAdd;
@@ -49,7 +50,7 @@ public class ComplexPolynomialOperations {
 	 * @param polynomialSize size of the polynomials this instance will handle.
 	 */
 	public ComplexPolynomialOperations(int polynomialSize) {
-		this(polynomialSize, 64 * 1024 * 1024, 512 * 1024 * 1024); // Default window size is 64Mb / 1Gb
+		this(polynomialSize, 64 * 1024 * 1024, 1023 * 1024 * 1024); // Default window size is 64Mb / 1Gb
 	}
 	
 	/**

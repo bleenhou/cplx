@@ -113,18 +113,25 @@ extern "C" __global__ void fftPreparePolynomial(float * in, float * out, int rou
  * @param  out data ordered for FFT
  * @params rounds number of fft rounds which will be run.
  */
-extern "C" __global__ void fftPrepareComplex(float2 * in, float2 * out, int rounds) {
+extern "C" __global__ void fftPrepareComplex(float2 * in, float2 * out, int rounds, int size, int fill) {
 
 	// Offset buffer according to which slice we will be working on
-	const int size = (1 << rounds);
 	const int idx = GLOBAL_IDX / size;
-	out += size * idx;
-	in  += size * idx;
+	const int idxInSlice = GLOBAL_IDX % size;
+	in += idx * size;
+	out += idx * size * (1 << fill);
 	
 	// Order for FFT
-	const int idxInSlice = GLOBAL_IDX % size;
-	const int destIdx = __brev(idxInSlice) >> (32 - rounds);
-	out[destIdx] 	 = in[idxInSlice];
+	const int destIdx = __brev(idxInSlice) >> (32 - (rounds + fill));
+	out[destIdx] = in[idxInSlice];
+	
+	// Fill padding with zeros
+	float2 zero;
+	zero.x = 0.0;
+	zero.y = 0.0;
+	for (int i = 1 ; i <= fill ; ++i) {
+		out[destIdx + i] = zero;
+	}
 }
 
 /**
@@ -180,48 +187,48 @@ extern "C" __global__ void multiply(float2 * in, float2 * out, int polynomialSiz
 * @param rowCount number of rows we are processing
 * @param width width of a matrix A line (or matrix B column)
 */
+#define MAX_ROWS 8
 extern "C" __global__ void multiplyMatrix(float2 * A, float2 * B, float2 * out, int polynomialSize, int columnCount, int rowCount, int width) {
 	
 	// Offset computation for buffers
 	const int polynomialId = GLOBAL_IDX / polynomialSize;
 	const int polynomialElement = GLOBAL_IDX % polynomialSize;
-	const int line = polynomialId / columnCount;
+
 	const int col =  polynomialId % columnCount;
+	B += col * width * polynomialSize;
 	
-	A += line * width * polynomialSize;
-	B += col  * width * polynomialSize;
+	float2 sums [MAX_ROWS];
+	for (int i = 0 ; i < MAX_ROWS ; ++i) {
+		sums[i].x = 0.0;
+		sums[i].y = 0.0;
+	}
 	
 	// Sum the point to point multiplication
-	float2 sum;
-	sum.x = 0.0;
-	sum.y = 0.0;
 	for (int i = 0 ; i < width ; ++i) {
-		float2 a = A[i * polynomialSize + polynomialElement];
-		float2 b = B[i * polynomialSize + polynomialElement];
-		sum.x += a.x * b.x - a.y * b.y; 
-		sum.y += a.x * b.y + a.y * b.x; 
+		const float2 b = B[i * polynomialSize + polynomialElement];
+		for (int line = 0 ; line < rowCount ; ++line) {
+			float2 a = A[line * width * polynomialSize + i * polynomialSize + polynomialElement];
+			sums[line].x += a.x * b.x - a.y * b.y; 
+			sums[line].y += a.x * b.y + a.y * b.x; 
+		}
 	}
-	out[GLOBAL_IDX] = conjugate(sum);
+	
+	// Store in global
+	for (int line = 0 ; line < rowCount ; ++line) {
+		out[line * polynomialSize * columnCount + col * polynomialSize + polynomialElement] = conjugate(sums[line]);
+	}
 }
 
 /**
  * Finalize the multiplication : 
  *  - Conjugate and scale the FFT input
- *  - Compact result and write it to output
  * @param in  input complex polynomial to scale (size 2n)
  * @param out buffer to write multiplication result to (size n)
- * @param polynomialSize output polynomial size (not 2^(2n) padded)
  */
-extern "C" __global__ void finalizeMultiplication(float2 * in, float * out, int polynomialSize) {
-	
-	// Offset to correct polynomial
-	const int polynomialId = GLOBAL_IDX / (polynomialSize / 2);
-	const int polynomialElement = GLOBAL_IDX % (polynomialSize / 2);
-	out += polynomialId * polynomialSize;
-	in  += polynomialId * polynomialSize;
-	
-	const float2 revFFT = scale(conjugate(in[polynomialElement]), 1.0f / polynomialSize);
-	out[polynomialElement] = revFFT.x; // Real part
-	out[polynomialSize / 2 + polynomialElement] = revFFT.y; // Imaginary part
+extern "C" __global__ void finalizeMultiplication(float2 * in, float2 * out, int polynomialSize) {
+	const int polynomialIdx = GLOBAL_IDX / polynomialSize;
+	const int idxInPolynomial = GLOBAL_IDX % polynomialSize;
+	in += polynomialIdx * polynomialSize * 2;
+	out += polynomialIdx * polynomialSize;
+	out[idxInPolynomial] = scale(conjugate(in[idxInPolynomial]), 1.0f / (polynomialSize * 2));
 }
-

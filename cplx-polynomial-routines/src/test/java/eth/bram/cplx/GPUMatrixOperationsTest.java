@@ -3,6 +3,7 @@ package eth.bram.cplx;
 import org.junit.jupiter.api.Test;
 
 import eth.bram.cplx.cpu.CPUOperations;
+import eth.bram.cplx.cpu.ComplexPolynomial;
 
 /**
  * Performs testing of Addition and multiplication of polynomials on GPU.

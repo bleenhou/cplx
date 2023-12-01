@@ -3,8 +3,6 @@ package eth.bram.cplx.cpu;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import eth.bram.cplx.ComplexPolynomial;
-
 /**
  * Basic testing of the CPU functions
  */

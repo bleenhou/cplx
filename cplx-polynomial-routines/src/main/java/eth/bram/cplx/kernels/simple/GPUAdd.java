@@ -4,11 +4,11 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
-import eth.bram.cplx.ComplexPolynomial;
 import eth.bram.cplx.GPUBuffer;
 import eth.bram.cplx.GPUContext;
 import eth.bram.cplx.GPUKernel;
 import eth.bram.cplx.GPUProgram;
+import eth.bram.cplx.cpu.ComplexPolynomial;
 import eth.bram.cplx.kernels.CudaSource;
 
 /**
@@ -83,12 +83,12 @@ public class GPUAdd {
 	 * 
 	 * @return a + b
 	 */
-	public ComplexPolynomial add(ComplexPolynomial a, ComplexPolynomial p2) {
+	public ComplexPolynomial add(ComplexPolynomial a, ComplexPolynomial b) {
 
 		// Fill and copy buffers
-		A.buffer().put(a.re()).put(a.im()).rewind();
+		A.buffer().put(a.data()).rewind();
 		A.write();
-		B.buffer().put(p2.re()).put(p2.im()).rewind();
+		B.buffer().put(b.data()).rewind();
 		B.write();
 
 		// Run kernel. There are (polynomialSize * 2) additions but it's
@@ -99,8 +99,7 @@ public class GPUAdd {
 		res.read();
 
 		// Create CPU memory for results and return
-		return new ComplexPolynomial(res.buffer().slice(0, a.re().capacity()).order(ByteOrder.LITTLE_ENDIAN), 
-							 		 res.buffer().slice(a.re().capacity(), a.im().capacity()).order(ByteOrder.LITTLE_ENDIAN));
+		return new ComplexPolynomial(res.buffer().order(ByteOrder.LITTLE_ENDIAN));
 	}
 
 	/**
