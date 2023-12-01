@@ -99,11 +99,11 @@ Creating 2 * [1024][1024] size 1024 polynomials     Multiplying... Done in 28710
 
 # Future work / Optimizations
 
-- [ ] CPU Objects representation is too different from GPU representation, this makes a few kernels too complex.
+- [x] CPU Objects representation is too different from GPU representation, this makes a few kernels too complex.
 - [ ] Multi-GPU should be easy to implement on matrix multiplication since we already have slicing in place.
 - Investigate hotspots :
-	- [ ] FFT Preparation kernel can likely be sped up on simple multiplication. It's coalescence is not optimal.
-	- [ ] Matrix multiplication of the FFTs is the worst offender in matrix multiplication, we can probably optimize it.
+	- [ ] FFT Preparation kernel can be removed by reading at the correct spot on FFTs first round.
+	- [x] Matrix multiplication of the FFTs is the worst offender in matrix multiplication, we can probably optimize it.
 	- [ ] Thread copy and execution of simple multiplication with one buffer per polynomial instead of a shared one.
 - [ ] Up to the first 5 rounds (because 2^5 = 32 = wrap size) of the FFT can probably be run in a single kernel using shfl_up_sync(). This would save a lot of global reads / writes.
 - [ ] Mutualize some of the CPU code.

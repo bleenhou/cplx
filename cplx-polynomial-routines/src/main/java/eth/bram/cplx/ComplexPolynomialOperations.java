@@ -50,7 +50,7 @@ public class ComplexPolynomialOperations {
 	 * @param polynomialSize size of the polynomials this instance will handle.
 	 */
 	public ComplexPolynomialOperations(int polynomialSize) {
-		this(polynomialSize, 64 * 1024 * 1024, 1023 * 1024 * 1024); // Default window size is 64Mb / 1Gb
+		this(polynomialSize, 128 * 1024 * 1024, 1023 * 1024 * 1024); // Default window size is 128Mb / 1Gb
 	}
 	
 	/**
