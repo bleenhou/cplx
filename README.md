@@ -46,56 +46,56 @@ The project is tested on Windows using a 3080Ti (Should be working on Linux as w
 
 Benchmarking polynomial Addition...  
 Creating two polynomials of size 1024        Adding... Done in 0 ms  
-Creating two polynomials of size 2048        Adding... Done in 0 ms  
+Creating two polynomials of size 2048        Adding... Done in 1 ms  
 Creating two polynomials of size 4096        Adding... Done in 0 ms  
-Creating two polynomials of size 8192        Adding... Done in 0 ms  
+Creating two polynomials of size 8192        Adding... Done in 1 ms  
 Creating two polynomials of size 16384       Adding... Done in 0 ms  
 Creating two polynomials of size 32768       Adding... Done in 0 ms  
-Creating two polynomials of size 65536       Adding... Done in 1 ms  
+Creating two polynomials of size 65536       Adding... Done in 0 ms  
 Creating two polynomials of size 131072      Adding... Done in 1 ms  
-Creating two polynomials of size 262144      Adding... Done in 2 ms  
+Creating two polynomials of size 262144      Adding... Done in 1 ms  
 Creating two polynomials of size 524288      Adding... Done in 2 ms  
 Creating two polynomials of size 1048576     Adding... Done in 3 ms  
 Creating two polynomials of size 2097152     Adding... Done in 6 ms  
-Creating two polynomials of size 4194304     Adding... Done in 12 ms  
-Creating two polynomials of size 8388608     Adding... Done in 24 ms  
+Creating two polynomials of size 4194304     Adding... Done in 13 ms  
+Creating two polynomials of size 8388608     Adding... Done in 26 ms  
 Creating two polynomials of size 16777216    Adding... Done in 48 ms  
-Creating two polynomials of size 33554432    Adding... Done in 95 ms  
+Creating two polynomials of size 33554432    Adding... Done in 98 ms  
   
 Benchmarking polynomial multiplication...  
 Creating two polynomials of size 1024        Multiplying... Done in 1 ms  
 Creating two polynomials of size 2048        Multiplying... Done in 1 ms  
 Creating two polynomials of size 4096        Multiplying... Done in 1 ms  
-Creating two polynomials of size 8192        Multiplying... Done in 2 ms  
-Creating two polynomials of size 16384       Multiplying... Done in 1 ms  
+Creating two polynomials of size 8192        Multiplying... Done in 1 ms  
+Creating two polynomials of size 16384       Multiplying... Done in 2 ms  
 Creating two polynomials of size 32768       Multiplying... Done in 2 ms  
 Creating two polynomials of size 65536       Multiplying... Done in 2 ms  
 Creating two polynomials of size 131072      Multiplying... Done in 2 ms  
 Creating two polynomials of size 262144      Multiplying... Done in 3 ms  
 Creating two polynomials of size 524288      Multiplying... Done in 5 ms  
-Creating two polynomials of size 1048576     Multiplying... Done in 10 ms  
+Creating two polynomials of size 1048576     Multiplying... Done in 9 ms  
 Creating two polynomials of size 2097152     Multiplying... Done in 17 ms  
-Creating two polynomials of size 4194304     Multiplying... Done in 34 ms  
-Creating two polynomials of size 8388608     Multiplying... Done in 68 ms  
-Creating two polynomials of size 16777216    Multiplying... Done in 139 ms  
-Creating two polynomials of size 33554432    Multiplying... Done in 276 ms  
+Creating two polynomials of size 4194304     Multiplying... Done in 32 ms  
+Creating two polynomials of size 8388608     Multiplying... Done in 63 ms  
+Creating two polynomials of size 16777216    Multiplying... Done in 124 ms  
+Creating two polynomials of size 33554432    Multiplying... Done in 251 ms  
   
 Benchmarking matrix addition...  
-Creating 2 * [64][64]     size 256  polynomials     Adding... Done in 22 ms  
-Creating 2 * [128][128]   size 256  polynomials     Adding... Done in 49 ms  
-Creating 2 * [256][256]   size 256  polynomials     Adding... Done in 137 ms  
-Creating 2 * [512][512]   size 256  polynomials     Adding... Done in 501 ms  
-Creating 2 * [1024][1024] size 256  polynomials     Adding... Done in 1992 ms  
-Creating 2 * [2048][2048] size 256  polynomials     Adding... Done in 5819 ms  
-
+Creating 2 * [64][64]     size 256  polynomials     Adding... Done in 18 ms  
+Creating 2 * [128][128]   size 256  polynomials     Adding... Done in 39 ms  
+Creating 2 * [256][256]   size 256  polynomials     Adding... Done in 148 ms  
+Creating 2 * [512][512]   size 256  polynomials     Adding... Done in 477 ms  
+Creating 2 * [1024][1024] size 256  polynomials     Adding... Done in 2493 ms  
+Creating 2 * [2048][2048] size 256  polynomials     Adding... Done in 5983 ms  
+  
 Benchmarking matrix multiplication...  
-Creating 2 * [16][16]     size 1024 polynomials     Multiplying... Done in 11 ms  
-Creating 2 * [32][32]     size 1024 polynomials     Multiplying... Done in 38 ms  
-Creating 2 * [64][64]     size 1024 polynomials     Multiplying... Done in 153 ms  
-Creating 2 * [128][128]   size 1024 polynomials     Multiplying... Done in 280 ms  
-Creating 2 * [256][256]   size 1024 polynomials     Multiplying... Done in 1027 ms  
-Creating 2 * [512][512]   size 1024 polynomials     Multiplying... Done in 5479 ms  
-Creating 2 * [1024][1024] size 1024 polynomials     Multiplying... Done in 54162 ms  
+Creating 2 * [16][16]     size 1024 polynomials     Multiplying... Done in 10 ms  
+Creating 2 * [32][32]     size 1024 polynomials     Multiplying... Done in 25 ms  
+Creating 2 * [64][64]     size 1024 polynomials     Multiplying... Done in 82 ms  
+Creating 2 * [128][128]   size 1024 polynomials     Multiplying... Done in 224 ms  
+Creating 2 * [256][256]   size 1024 polynomials     Multiplying... Done in 713 ms  
+Creating 2 * [512][512]   size 1024 polynomials     Multiplying... Done in 4454 ms  
+Creating 2 * [1024][1024] size 1024 polynomials     Multiplying... Done in 28710 ms  
 
 # Future work / Optimizations
 

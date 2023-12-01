@@ -154,7 +154,6 @@ public class GPUMatrixMultiply {
 		final int lineSize = aWidth * polynomialSizeInBytes;
 		final int columnSize = lineSize; // alias for readability
 		final int rowsPerSlice = Math.min(Math.min(aHeight, maxBufferSizeA / lineSize), MAX_ROWS);
-		System.out.println(rowsPerSlice + " rows per slice");
 		final int columnPerSlice = Math.min(bWidth, maxBufferSizeB / columnSize);
 		if (rowsPerSlice == 0 || columnPerSlice == 0) {
 			throw new IllegalStateException("Window is too small to compute a single result cell");
