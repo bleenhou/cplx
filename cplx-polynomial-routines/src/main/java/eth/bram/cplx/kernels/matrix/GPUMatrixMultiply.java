@@ -290,26 +290,6 @@ public class GPUMatrixMultiply {
 	}
 	
 	private void runFFT(GPUKernel kPrepare, GPUKernel kRun, GPUBuffer input, GPUBuffer output, int itemSize, int itemCount) {
-		
-//		// How many items we must add (for n to 2n expansion)
-//		final int fill = (int)(Math.log(objectOutputsize/objectInputSize) / Math.log(2));
-//		
-//		// Prepare FFT data
-//		// TODO : This kernel should be removed and data be read directly in the first step of the FFT
-//		kPrepare.setArg(0, input.pointer());
-//		kPrepare.setArg(1, output.pointer());
-//		kPrepare.setArg(2, rounds - fill);
-//		kPrepare.setArg(3, objectInputSize);
-//		kPrepare.setArg(4, fill);
-//		kPrepare.run(prepareRunsize);
-//		
-//		// Run FFT kernels - log2 rounds.
-//		for (int i = 1 ; i <= rounds ; ++i) {
-//			kRun.setArg(1, 1 << i);
-//			kRun.run(fftRunsize);
-//		}
-//		return rounds;
-		
 		final int rounds = (int)(Math.log(itemSize) / Math.log(2));
 		// First step of the FFT
 		kPrepare.setArg(0, input.pointer());
@@ -329,7 +309,6 @@ public class GPUMatrixMultiply {
 	 */
 	private void fftColumns(GPUBuffer polynomials, GPUBuffer BFFT) {
 		final int polynomialCount = polynomials.buffer().position() / (polynomialSize * Float.BYTES * 4);
-		System.out.println(polynomialCount);
 		long then = System.nanoTime();
 		runFFT(fftFirstStepKernelB, fftKernelB, polynomials, BFFT, polynomialSize * 2, polynomialCount);
 		FFTB_TIMER.addAndGet(System.nanoTime() - then);

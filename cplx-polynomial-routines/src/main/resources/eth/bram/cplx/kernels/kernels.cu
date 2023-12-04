@@ -67,12 +67,13 @@ extern "C" __global__ void add(float2 * A, float2 * B, float2 * res)
 }
 
 /**
- * Populates the values in a nice order for the reverse FFT computation.
+ * First FFT step feching data in the correct location
  * Example layout for an 0 1 2 3 4 5 6 7 polynomial : 0 4 2 6 1 5 3 7
  * 
- * @param  in data to order for FFT
- * @param  out data ordered for FFT
- * @params rounds number of fft rounds which will be run.
+ * @param in data to order for FFT
+ * @param out data ordered for FFT
+ * @param rounds number of fft rounds which will be run.
+ * @param size size of the input object.
  */
 extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, int size) {
 

@@ -160,6 +160,12 @@ public class GPUMultiply {
 		return new ComplexPolynomial(inPolynomials.read(ByteBuffer.allocate(a.data().capacity()).order(ByteOrder.LITTLE_ENDIAN)));
 	}
 
+	/**
+	 * Runs an FFT on the provided buffer
+	 * @param input buffer to run the FFT on
+	 * @param itemSize size of each item of the FFT in the provided buffer
+	 * @param itemCount number of items to run FFT on in the provided buffer
+	 */
 	private void runFFT(GPUPointer input, int itemSize, int itemCount) {
 		final int rounds = (int)(Math.log(itemSize) / Math.log(2));
 		// First step of the FFT
@@ -167,11 +173,11 @@ public class GPUMultiply {
 		fftFirstStepKernel.setArg(1, inOutFFT.pointer());
 		fftFirstStepKernel.setArg(2, rounds);
 		fftFirstStepKernel.setArg(3, itemSize);
-		fftFirstStepKernel.run(itemCount * itemSize / 2);
+		fftFirstStepKernel.run(itemCount * itemSize / 2, 128);
 		// Run FFT kernels for log2 rounds.
 		for (int i = 2 ; i <= rounds ; ++i) {
 			fftKernel.setArg(1, 1 << i);
-			fftKernel.run(itemCount * itemSize / 2);
+			fftKernel.run(itemCount * itemSize / 2, 128);
 		}
 	}
 
