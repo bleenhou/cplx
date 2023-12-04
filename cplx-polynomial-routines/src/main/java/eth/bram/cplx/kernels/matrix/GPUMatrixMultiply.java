@@ -47,17 +47,17 @@ public class GPUMatrixMultiply {
 	/**
 	 * FFT preparation kernel
 	 */
-	private final GPUKernel fftPrepareKernelA;
+	private final GPUKernel fftFirstStepKernelA;
 	
 	/**
 	 * FFT preparation kernel
 	 */
-	private final GPUKernel fftPrepareKernelB;
+	private final GPUKernel fftFirstStepKernelB;
 	
 	/**
 	 * FFT preparation kernel
 	 */
-	private final GPUKernel fftPrepareKernelReverse;
+	private final GPUKernel fftFirstStepKernelReverse;
 	
 	/**
 	 * FFT kernel for A
@@ -122,9 +122,9 @@ public class GPUMatrixMultiply {
 		// There is one FFT kernel per matrix so that we set arguments once and for all (prevent threading issues setting arguments)
 		this.ctx = GPUContext.create(deviceId);
 		final GPUProgram program = ctx.createProgram(Arrays.asList(CudaSource.getSource("kernels.cu").replace("#define MAX_ROWS 8", "#define MAX_ROWS " + MAX_ROWS)));
-		this.fftPrepareKernelA = program.buildKernel("fftPrepareComplex");
-		this.fftPrepareKernelB = program.buildKernel("fftPrepareComplex");
-		this.fftPrepareKernelReverse = program.buildKernel("fftPrepareComplex");
+		this.fftFirstStepKernelA = program.buildKernel("fftFirstStep");
+		this.fftFirstStepKernelB = program.buildKernel("fftFirstStep");
+		this.fftFirstStepKernelReverse = program.buildKernel("fftFirstStep");
 		this.fftKernelA = program.buildKernel("fft");
 		this.fftKernelB = program.buildKernel("fft");
 		this.fftKernelReverse = program.buildKernel("fft");
@@ -165,9 +165,9 @@ public class GPUMatrixMultiply {
 			throw new IllegalStateException("Window is too small to compute a single result cell");
 		}
 		
-		// Create buffers for polynomials
-		final GPUBuffer lines = ctx.createBuffer(ByteBuffer.allocate(lineSize * rowsPerSlice).order(ByteOrder.LITTLE_ENDIAN));
-		final GPUBuffer columns = ctx.createBuffer(ByteBuffer.allocate(columnSize * columnPerSlice).order(ByteOrder.LITTLE_ENDIAN));
+		// Create buffers for polynomials - we use twice the space to leave room for polynomials of size 2n
+		final GPUBuffer lines = ctx.createBuffer(ByteBuffer.allocate(lineSize * rowsPerSlice * 2).order(ByteOrder.LITTLE_ENDIAN));
+		final GPUBuffer columns = ctx.createBuffer(ByteBuffer.allocate(columnSize * columnPerSlice * 2).order(ByteOrder.LITTLE_ENDIAN));
 		
 		// Create buffers for FFT Representation of polynomials
 		final GPUBuffer AFFT = ctx.createBuffer(ByteBuffer.allocate(lineSize * rowsPerSlice * 2).order(ByteOrder.LITTLE_ENDIAN));
@@ -248,9 +248,7 @@ public class GPUMatrixMultiply {
 				
 				// Reverse FFT
 				then = System.nanoTime();
-				runFFT(rounds() + 1, fftPrepareKernelReverse, fftKernelReverse, ccOut, FFTReverse, 
-					polynomialSize * 2, polynomialSize * 2, 
-					polynomialCount * polynomialSize * 2, polynomialCount * polynomialSize);
+				runFFT(fftFirstStepKernelReverse, fftKernelReverse, ccOut, FFTReverse, polynomialSize * 2, polynomialCount);
 				FFTREV_TIMER.addAndGet(System.nanoTime() - then);
 				
 				// Finalize multiplication and compress result
@@ -291,37 +289,49 @@ public class GPUMatrixMultiply {
 		}
 	}
 	
-	private int runFFT(int rounds, GPUKernel kPrepare, GPUKernel kRun, GPUBuffer input, GPUBuffer output, int objectInputSize, int objectOutputsize, int prepareRunsize, int fftRunsize) {
+	private void runFFT(GPUKernel kPrepare, GPUKernel kRun, GPUBuffer input, GPUBuffer output, int itemSize, int itemCount) {
 		
-		// How many items we must add (for n to 2n expansion)
-		final int fill = (int)(Math.log(objectOutputsize/objectInputSize) / Math.log(2));
+//		// How many items we must add (for n to 2n expansion)
+//		final int fill = (int)(Math.log(objectOutputsize/objectInputSize) / Math.log(2));
+//		
+//		// Prepare FFT data
+//		// TODO : This kernel should be removed and data be read directly in the first step of the FFT
+//		kPrepare.setArg(0, input.pointer());
+//		kPrepare.setArg(1, output.pointer());
+//		kPrepare.setArg(2, rounds - fill);
+//		kPrepare.setArg(3, objectInputSize);
+//		kPrepare.setArg(4, fill);
+//		kPrepare.run(prepareRunsize);
+//		
+//		// Run FFT kernels - log2 rounds.
+//		for (int i = 1 ; i <= rounds ; ++i) {
+//			kRun.setArg(1, 1 << i);
+//			kRun.run(fftRunsize);
+//		}
+//		return rounds;
 		
-		// Prepare FFT data
-		// TODO : This kernel should be removed and data be read directly in the first step of the FFT
+		final int rounds = (int)(Math.log(itemSize) / Math.log(2));
+		// First step of the FFT
 		kPrepare.setArg(0, input.pointer());
 		kPrepare.setArg(1, output.pointer());
-		kPrepare.setArg(2, rounds - fill);
-		kPrepare.setArg(3, objectInputSize);
-		kPrepare.setArg(4, fill);
-		kPrepare.run(prepareRunsize);
-		
-		// Run FFT kernels - log2 rounds.
-		for (int i = 1 ; i <= rounds ; ++i) {
+		kPrepare.setArg(2, rounds);
+		kPrepare.setArg(3, itemSize);
+		kPrepare.run(itemCount * itemSize / 2);
+		// Run FFT kernels for log2 rounds.
+		for (int i = 2 ; i <= rounds ; ++i) {
 			kRun.setArg(1, 1 << i);
-			kRun.run(fftRunsize);
+			kRun.run(itemCount * itemSize / 2);
 		}
-		return rounds;
 	}
 	
 	/**
 	 * Runs FFT on the data in the columns buffer
 	 */
 	private void fftColumns(GPUBuffer polynomials, GPUBuffer BFFT) {
-		final int polynomialCount = (polynomials.buffer().position() / Float.BYTES) / (polynomialSize * 2);
+		final int polynomialCount = polynomials.buffer().position() / (polynomialSize * Float.BYTES * 4);
+		System.out.println(polynomialCount);
 		long then = System.nanoTime();
-		runFFT(rounds() + 1, fftPrepareKernelB, fftKernelB, polynomials, BFFT, 			// Buffers and input / output for A
-			   polynomialSize, polynomialSize * 2, 										// Prepare with (polynomialSize) input expanded to (polynomialSize * 2)
-			   polynomialSize * polynomialCount, polynomialSize * polynomialCount); 	// Run polynomialSize * polynomialCount prepares and runs
+		runFFT(fftFirstStepKernelB, fftKernelB, polynomials, BFFT, polynomialSize * 2, polynomialCount);
 		FFTB_TIMER.addAndGet(System.nanoTime() - then);
 	}
 	
@@ -329,11 +339,9 @@ public class GPUMatrixMultiply {
 	 * Runs FFT on the rows buffer
 	 */
 	private void fftRows(GPUBuffer polynomials, GPUBuffer AFFT) {
-		final int polynomialCount = (polynomials.buffer().position() / Float.BYTES) / (polynomialSize * 2);
+		final int polynomialCount = polynomials.buffer().position() / (polynomialSize * Float.BYTES * 4);
 		long then = System.nanoTime();
-		runFFT(rounds() + 1, fftPrepareKernelA, fftKernelA, polynomials, AFFT, 			// Buffers and input / output for A
-			   polynomialSize, polynomialSize * 2, 										// Prepare with (polynomialSize) input expanded to (polynomialSize * 2)
-			   polynomialSize * polynomialCount, polynomialSize * polynomialCount); 	// Run polynomialSize * polynomialCount prepares and runs
+		runFFT(fftFirstStepKernelA, fftKernelA, polynomials, AFFT, polynomialSize * 2, polynomialCount); 
 		FFTA_TIMER.addAndGet(System.nanoTime() - then);
 	}
 	
@@ -347,7 +355,10 @@ public class GPUMatrixMultiply {
 		polynomials.buffer().rewind();
 		for (int column = from; column < to ; ++column) {
 			for (int i = 0 ; i < p.length ; ++i) {
-				polynomials.buffer().put(p[i][column].data().rewind());
+				// Position buffer to leave gaps
+				final ByteBuffer data = p[i][column].data();
+				polynomials.buffer().put(data.rewind());
+				polynomials.buffer().position(polynomials.buffer().position() + data.capacity());
 			}
 		}
 		polynomials.write();
@@ -363,7 +374,9 @@ public class GPUMatrixMultiply {
 		polynomials.buffer().rewind();
 		for (int row = from; row < to ; ++row) {
 			for (int i = 0 ; i < p[row].length ; ++i) {
-				polynomials.buffer().put(p[row][i].data().rewind());
+				final ByteBuffer data = p[row][i].data().rewind();
+				polynomials.buffer().put(data.rewind());
+				polynomials.buffer().position(polynomials.buffer().position() + data.capacity());
 			}
 		}
 		polynomials.write();
@@ -378,13 +391,6 @@ public class GPUMatrixMultiply {
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
-	}
-	
-	/**
-	 * Power of two of the polynomial size.
-	 */
-	private int rounds() {
-		return (int)(Math.log(polynomialSize) / Math.log(2));
 	}
 	
 	/**

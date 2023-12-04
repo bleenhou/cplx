@@ -74,17 +74,26 @@ extern "C" __global__ void add(float2 * A, float2 * B, float2 * res)
  * @param  out data ordered for FFT
  * @params rounds number of fft rounds which will be run.
  */
-extern "C" __global__ void fftPrepareComplex(float2 * in, float2 * out, int rounds, int size) {
+extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, int size) {
 
 	// Offset buffer according to which slice we will be working on
-	const int idx = GLOBAL_IDX / size;
-	const int idxInSlice = GLOBAL_IDX % size;
+	const int idx = GLOBAL_IDX / (size / 2);
+	const int idxInSlice = GLOBAL_IDX % (size / 2);
 	in += idx * size;
 	out += idx * size;
-	
-	// Order for FFT
-	const int destIdx = __brev(idxInSlice) >> (32 - rounds);
-	out[destIdx] = in[idxInSlice];
+
+	// k = 0
+    float2 w;
+    w.x = 1; // cos(0)
+    w.y = 0; // sin(0)
+    
+    // Compute and propagate for next iteration
+	float2 q = in[__brev(idxInSlice * 2) >> (32 - rounds)];
+	float2 r = in[__brev(idxInSlice * 2 + 1) >> (32 - rounds)];
+	w = mul(w, r);
+    out[idxInSlice * 2] = add(q, w);
+    out[idxInSlice * 2 + 1] = sub(q, w);
+	    
 }
 
 /**

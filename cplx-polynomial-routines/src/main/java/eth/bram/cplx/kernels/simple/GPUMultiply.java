@@ -39,9 +39,9 @@ public class GPUMultiply {
 	private final GPUContext ctx;
 
 	/**
-	 * FFT preparation kernel
+	 * FFT first step kernel
 	 */
-	private final GPUKernel fftPrepareKernel;
+	private final GPUKernel fftFirstStepKernel;
 	
 	/**
 	 * FFT kernel
@@ -118,7 +118,7 @@ public class GPUMultiply {
 		multiplyKernel.setArg(2, polynomialSize * 2);
 		
 		// FFT Prepare complex kernel and parameters
-		this.fftPrepareKernel = program.buildKernel("fftPrepareComplex");
+		this.fftFirstStepKernel = program.buildKernel("fftFirstStep");
 
 		// Finalize multiplication
 		this.finalizeMultiplicationKernel = program.buildKernel("finalizeMultiplication");
@@ -160,24 +160,19 @@ public class GPUMultiply {
 		return new ComplexPolynomial(inPolynomials.read(ByteBuffer.allocate(a.data().capacity()).order(ByteOrder.LITTLE_ENDIAN)));
 	}
 
-	private int runFFT(GPUPointer input, int itemSize, int itemCount) {
-		
+	private void runFFT(GPUPointer input, int itemSize, int itemCount) {
 		final int rounds = (int)(Math.log(itemSize) / Math.log(2));
-		
-		// Prepare FFT data
-		// TODO : This kernel should be removed and data be read directly in the first step of the FFT
-		fftPrepareKernel.setArg(0, input);
-		fftPrepareKernel.setArg(1, inOutFFT.pointer());
-		fftPrepareKernel.setArg(2, rounds);
-		fftPrepareKernel.setArg(3, itemSize);
-		fftPrepareKernel.run(itemCount * itemSize);
-		
-		// Run FFT kernels - log2 rounds.
-		for (int i = 1 ; i <= rounds ; ++i) {
+		// First step of the FFT
+		fftFirstStepKernel.setArg(0, input);
+		fftFirstStepKernel.setArg(1, inOutFFT.pointer());
+		fftFirstStepKernel.setArg(2, rounds);
+		fftFirstStepKernel.setArg(3, itemSize);
+		fftFirstStepKernel.run(itemCount * itemSize / 2);
+		// Run FFT kernels for log2 rounds.
+		for (int i = 2 ; i <= rounds ; ++i) {
 			fftKernel.setArg(1, 1 << i);
 			fftKernel.run(itemCount * itemSize / 2);
 		}
-		return rounds;
 	}
 
 	/**
