@@ -7,7 +7,7 @@ public interface GPUDeviceBuffer {
 	GPUPointer pointer();
 
 	void write(long offset, ByteBuffer data);
-
+	
 	ByteBuffer read(ByteBuffer data);
 
 }
