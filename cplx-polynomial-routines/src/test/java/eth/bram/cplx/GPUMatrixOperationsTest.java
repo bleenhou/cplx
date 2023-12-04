@@ -57,7 +57,7 @@ public class GPUMatrixOperationsTest {
 	@Test
 	public void matrixGPUMultiplySlicing() {
 		final int polynomialSize = 4;
-		final ComplexPolynomialOperations kernels = new ComplexPolynomialOperations(polynomialSize, 1024, 1024);
+		final ComplexPolynomialOperations kernels = new ComplexPolynomialOperations(polynomialSize, 2048, 2048);
 		testMul(kernels, polynomialSize, 20, 20);
 		kernels.release();
 	}

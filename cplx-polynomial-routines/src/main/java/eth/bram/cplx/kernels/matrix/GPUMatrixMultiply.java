@@ -157,7 +157,7 @@ public class GPUMatrixMultiply {
 		
 		// Check how many multiplications we can run in parallel
 		final int polynomialSizeInBytes = polynomialSize * 2 * Float.BYTES;
-		final int lineSize = aWidth * polynomialSizeInBytes;
+		final int lineSize = aWidth * polynomialSizeInBytes * 2;
 		final int columnSize = lineSize; // alias for readability
 		final int rowsPerSlice = Math.min(Math.min(aHeight, maxBufferSizeA / lineSize), MAX_ROWS);
 		final int columnPerSlice = Math.min(bWidth, maxBufferSizeB / columnSize);
@@ -166,12 +166,12 @@ public class GPUMatrixMultiply {
 		}
 		
 		// Create buffers for polynomials - we use twice the space to leave room for polynomials of size 2n
-		final GPUBuffer lines = ctx.createBuffer(ByteBuffer.allocate(lineSize * rowsPerSlice * 2).order(ByteOrder.LITTLE_ENDIAN));
-		final GPUBuffer columns = ctx.createBuffer(ByteBuffer.allocate(columnSize * columnPerSlice * 2).order(ByteOrder.LITTLE_ENDIAN));
+		final GPUBuffer lines = ctx.createBuffer(ByteBuffer.allocate(lineSize * rowsPerSlice).order(ByteOrder.LITTLE_ENDIAN));
+		final GPUBuffer columns = ctx.createBuffer(ByteBuffer.allocate(columnSize * columnPerSlice).order(ByteOrder.LITTLE_ENDIAN));
 		
 		// Create buffers for FFT Representation of polynomials
-		final GPUBuffer AFFT = ctx.createBuffer(ByteBuffer.allocate(lineSize * rowsPerSlice * 2).order(ByteOrder.LITTLE_ENDIAN));
-		final GPUBuffer BFFT = ctx.createBuffer(ByteBuffer.allocate(columnSize * columnPerSlice * 2).order(ByteOrder.LITTLE_ENDIAN));
+		final GPUBuffer AFFT = ctx.createBuffer(ByteBuffer.allocate(lineSize * rowsPerSlice).order(ByteOrder.LITTLE_ENDIAN));
+		final GPUBuffer BFFT = ctx.createBuffer(ByteBuffer.allocate(columnSize * columnPerSlice).order(ByteOrder.LITTLE_ENDIAN));
 		final GPUBuffer FFTReverse = ctx.createBuffer(ByteBuffer.allocate(rowsPerSlice * columnPerSlice * polynomialSizeInBytes * 2).order(ByteOrder.LITTLE_ENDIAN));
 		fftKernelA.setArg(0, AFFT.pointer());
 		fftKernelB.setArg(0, BFFT.pointer());
@@ -243,7 +243,7 @@ public class GPUMatrixMultiply {
 				multiplyMatrixKernel.setArg(5, rowCount);
 				multiplyMatrixKernel.setArg(6, aWidth);
 				long then = System.nanoTime();
-				multiplyMatrixKernel.run(columnCount * polynomialSize * 2, 96);
+				multiplyMatrixKernel.run(columnCount * polynomialSize * 2, 128);
 				MUL_TIMER.addAndGet(System.nanoTime() - then);
 				
 				// Reverse FFT
