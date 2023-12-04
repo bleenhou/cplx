@@ -82,29 +82,9 @@ extern "C" __global__ void fftPrepareComplex(float2 * in, float2 * out, int roun
 	in += idx * size;
 	out += idx * size;
 	
-	const int destIdx = __brev(idxInSlice) >> (32 - rounds);
-	
-	// Item we are handling in the subset
-	int k = GLOBAL_IDX % (size / 2);
-	
-	// Compute kth root of unity
-    float2 w;
-    float kth = (-2.0f * PI * k) / size;
-    w.x = cos(kth);
-    w.y = sin(kth);
-    
-    // Compute and propagate for next iteration
-	float2 q = inOut[k];
-	float2 r = inOut[k + size / 2];
-	w = mul(w, r);
-    inOut[k] = add(q, w);
-    inOut[k + size / 2] = sub(q, w);
-    
-    
-	
 	// Order for FFT
-//	const int destIdx = __brev(idxInSlice) >> (32 - rounds);
-//	out[destIdx] = in[idxInSlice];
+	const int destIdx = __brev(idxInSlice) >> (32 - rounds);
+	out[destIdx] = in[idxInSlice];
 }
 
 /**

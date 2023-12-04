@@ -10,6 +10,7 @@ import eth.bram.cplx.GPUBuffer;
 import eth.bram.cplx.GPUContext;
 import eth.bram.cplx.GPUDeviceBuffer;
 import eth.bram.cplx.GPUKernel;
+import eth.bram.cplx.GPUPointer;
 import eth.bram.cplx.GPUProgram;
 import eth.bram.cplx.cpu.ComplexPolynomial;
 import eth.bram.cplx.kernels.CudaSource;
@@ -144,13 +145,13 @@ public class GPUMultiply {
 		inPolynomials.write(a.data().capacity() * 2, b.data());
 		
 		// Prepare data for FFT (2 polynomials of size 2^2n)
-		runFFT(inPolynomials, polynomialSize * 2, polynomialSize * polynomialCount);
+		runFFT(inPolynomials.pointer(), polynomialSize * 2, polynomialCount);
 		
 		// Perform multiplication on one polynomial size which contains 2 elements (re + im)
 		multiplyKernel.run(polynomialSize * 2);
 		
 		// Run reverse FFT - Only first half (lower powers of n) of it is needed
-		runFFT(outMul, polynomialSize * 2, polynomialSize);
+		runFFT(outMul.pointer(), polynomialSize * 2, 1);
 		
 		// Finalize multiplication and compress result. This kernel brings us back from 2n polynomials to n.
 		finalizeMultiplicationKernel.run(polynomialSize);
@@ -159,42 +160,22 @@ public class GPUMultiply {
 		return new ComplexPolynomial(inPolynomials.read(ByteBuffer.allocate(a.data().capacity()).order(ByteOrder.LITTLE_ENDIAN)));
 	}
 
-	private int runFFT(GPUDeviceBuffer input, int objectInputSize, int fftRunsize) {
+	private int runFFT(GPUPointer input, int itemSize, int itemCount) {
 		
-		final int rounds = (int)(Math.log(objectInputSize) / Math.log(2));
+		final int rounds = (int)(Math.log(itemSize) / Math.log(2));
 		
 		// Prepare FFT data
 		// TODO : This kernel should be removed and data be read directly in the first step of the FFT
-		fftPrepareKernel.setArg(0, input.pointer());
+		fftPrepareKernel.setArg(0, input);
 		fftPrepareKernel.setArg(1, inOutFFT.pointer());
 		fftPrepareKernel.setArg(2, rounds);
-		fftPrepareKernel.setArg(3, objectInputSize);
-		fftPrepareKernel.run(fftRunsize * 2);
+		fftPrepareKernel.setArg(3, itemSize);
+		fftPrepareKernel.run(itemCount * itemSize);
 		
 		// Run FFT kernels - log2 rounds.
 		for (int i = 1 ; i <= rounds ; ++i) {
 			fftKernel.setArg(1, 1 << i);
-			fftKernel.run(fftRunsize);
-		}
-		return rounds;
-	}
-	
-	private int runFFT(GPUBuffer input, int objectInputSize, int fftRunsize) {
-				
-		final int rounds = (int)(Math.log(objectInputSize) / Math.log(2));
-		
-		// Prepare FFT data
-		// TODO : This kernel should be removed and data be read directly in the first step of the FFT
-		fftPrepareKernel.setArg(0, input.pointer());
-		fftPrepareKernel.setArg(1, inOutFFT.pointer());
-		fftPrepareKernel.setArg(2, rounds);
-		fftPrepareKernel.setArg(3, objectInputSize);
-		fftPrepareKernel.run(fftRunsize * 2);
-		
-		// Run FFT kernels - log2 rounds.
-		for (int i = 1 ; i <= rounds ; ++i) {
-			fftKernel.setArg(1, 1 << i);
-			fftKernel.run(fftRunsize);
+			fftKernel.run(itemCount * itemSize / 2);
 		}
 		return rounds;
 	}
