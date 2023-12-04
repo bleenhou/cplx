@@ -35,7 +35,7 @@ class CudaDeviceBuffer implements GPUDeviceBuffer {
 	
 	@Override
 	public void write(long offset, ByteBuffer buffer) {
-		cuMemcpyHtoDAsync(ptr.withByteOffset(offset), Pointer.to(buffer.array()), buffer.capacity(), stream);
+		cuMemcpyHtoDAsync(ptr.withByteOffset(offset), Pointer.to(buffer), buffer.capacity(), stream);
 		cuStreamSynchronize(stream);
 	}
 
@@ -46,7 +46,7 @@ class CudaDeviceBuffer implements GPUDeviceBuffer {
 
 	@Override
 	public ByteBuffer read(ByteBuffer data) {
-		JCudaDriver.cuMemcpyDtoHAsync(Pointer.to(data.array()), ptr, data.capacity(), stream);
+		JCudaDriver.cuMemcpyDtoHAsync(Pointer.to(data), ptr, data.capacity(), stream);
 		cuStreamSynchronize(stream);
 		return data;
 	}

@@ -67,7 +67,7 @@ extern "C" __global__ void add(float2 * A, float2 * B, float2 * res)
 }
 
 /**
- * First FFT step feching data in the correct location
+ * First FFT step feching data in the correct location.
  * Example layout for an 0 1 2 3 4 5 6 7 polynomial : 0 4 2 6 1 5 3 7
  * 
  * @param in data to order for FFT
@@ -128,14 +128,11 @@ extern "C" __global__ void fft(float2 * inOut, int size) {
 * Complex point to point mulitiplication (Equivalent of polynomial multiply in the FFT domain)
 * For efficiency reasons, this kernel also conjugates the return values to prepare for following FFT Inversion.
 * 
-* @param in set of polynomials in FFT form.
-* @param out buffer to write results to.
-* @param polynomialSize size of the polynomials.
+* @param A polynomial A in FFT form.
+* @param B polynomial B in FFT form.
 */
-extern "C" __global__ void multiply(float2 * in, float2 * out, int polynomialSize) {
-	const float2 a = in[GLOBAL_IDX];
-	const float2 b = in[polynomialSize + GLOBAL_IDX];
-	out[GLOBAL_IDX] = conjugate(mul(a, b));
+extern "C" __global__ void multiply(float2 * A, float2 * B) {
+	A[GLOBAL_IDX] = conjugate(mul(A[GLOBAL_IDX], B[GLOBAL_IDX]));
 }
 
 /**
