@@ -67,32 +67,34 @@ extern "C" __global__ void add(float2 * A, float2 * B, float2 * res)
 }
 
 /**
- * Populates the values in a nice order for the reverse FFT computation.
+ * First FFT step feching data in the correct location.
  * Example layout for an 0 1 2 3 4 5 6 7 polynomial : 0 4 2 6 1 5 3 7
  * 
- * @param  in data to order for FFT
- * @param  out data ordered for FFT
- * @params rounds number of fft rounds which will be run.
+ * @param in data to order for FFT
+ * @param out data ordered for FFT
+ * @param rounds number of fft rounds which will be run.
+ * @param size size of the input object.
  */
-extern "C" __global__ void fftPrepareComplex(float2 * in, float2 * out, int rounds, int size, int fill) {
+extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, int size) {
 
 	// Offset buffer according to which slice we will be working on
-	const int idx = GLOBAL_IDX / size;
-	const int idxInSlice = GLOBAL_IDX % size;
+	const int idx = GLOBAL_IDX / (size / 2);
+	const int idxInSlice = GLOBAL_IDX % (size / 2);
 	in += idx * size;
-	out += idx * size * (1 << fill);
-	
-	// Order for FFT
-	const int destIdx = __brev(idxInSlice) >> (32 - (rounds + fill));
-	out[destIdx] = in[idxInSlice];
-	
-	// Fill padding with zeros
-	float2 zero;
-	zero.x = 0.0;
-	zero.y = 0.0;
-	for (int i = 1 ; i <= fill ; ++i) {
-		out[destIdx + i] = zero;
-	}
+	out += idx * size;
+
+	// k = 0
+    float2 w;
+    w.x = 1; // cos(0)
+    w.y = 0; // sin(0)
+    
+    // Compute and propagate for next iteration
+	float2 q = in[__brev(idxInSlice * 2) >> (32 - rounds)];
+	float2 r = in[__brev(idxInSlice * 2 + 1) >> (32 - rounds)];
+	w = mul(w, r);
+    out[idxInSlice * 2] = add(q, w);
+    out[idxInSlice * 2 + 1] = sub(q, w);
+	    
 }
 
 /**
@@ -126,14 +128,11 @@ extern "C" __global__ void fft(float2 * inOut, int size) {
 * Complex point to point mulitiplication (Equivalent of polynomial multiply in the FFT domain)
 * For efficiency reasons, this kernel also conjugates the return values to prepare for following FFT Inversion.
 * 
-* @param in set of polynomials in FFT form.
-* @param out buffer to write results to.
-* @param polynomialSize size of the polynomials.
+* @param A polynomial A in FFT form.
+* @param B polynomial B in FFT form.
 */
-extern "C" __global__ void multiply(float2 * in, float2 * out, int polynomialSize) {
-	const float2 a = in[GLOBAL_IDX];
-	const float2 b = in[polynomialSize + GLOBAL_IDX];
-	out[GLOBAL_IDX] = conjugate(mul(a, b));
+extern "C" __global__ void multiply(float2 * A, float2 * B) {
+	A[GLOBAL_IDX] = conjugate(mul(A[GLOBAL_IDX], B[GLOBAL_IDX]));
 }
 
 /**

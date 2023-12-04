@@ -28,6 +28,7 @@ class CudaContext implements GPUContext {
 	private final CUdevice device;
 	private final CUstream stream;
 	private final List<CudaBuffer> buffers = new CopyOnWriteArrayList<>();
+	private final List<CudaDeviceBuffer> deviceBuffers = new CopyOnWriteArrayList<>();
 	private final List<CudaProgram> programs = new ArrayList<>();
 	
 	CudaContext(int deviceId) {
@@ -70,9 +71,17 @@ class CudaContext implements GPUContext {
     }
 	
 	@Override
+	public GPUDeviceBuffer createDeviceBuffer(long size) {
+		final CudaDeviceBuffer buffer = new CudaDeviceBuffer(context, stream, size);
+		deviceBuffers.add(buffer);
+		return buffer;
+    }
+	
+	@Override
 	public void release() {
 		programs.forEach(p -> p.release());
 		buffers.forEach(b -> b.release());
+		deviceBuffers.forEach(b -> b.release());
 		JCudaDriver.cuStreamDestroy(stream);
 		JCudaDriver.cuCtxDestroy(context);
 	}
