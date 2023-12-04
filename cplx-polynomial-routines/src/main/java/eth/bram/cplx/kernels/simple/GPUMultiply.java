@@ -1,12 +1,9 @@
 package eth.bram.cplx.kernels.simple;
 
-import static java.nio.ByteOrder.LITTLE_ENDIAN;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
-import eth.bram.cplx.GPUBuffer;
 import eth.bram.cplx.GPUContext;
 import eth.bram.cplx.GPUDeviceBuffer;
 import eth.bram.cplx.GPUKernel;
@@ -61,17 +58,12 @@ public class GPUMultiply {
 	/**
 	 * Polynomials data (input)
 	 */
-	private final GPUDeviceBuffer inPolynomials;
+	private final GPUDeviceBuffer fftIn;
 	
 	/**
 	 * GPU buffer holding in place FFT data
 	 */
-	private final GPUBuffer inOutFFT;
-	
-	/**
-	 * Result of the multiplication
-	 */
-	private final GPUBuffer outMul;
+	private final GPUDeviceBuffer fftOut;
 	
 	/**
 	 * Polynomial size
@@ -99,22 +91,19 @@ public class GPUMultiply {
 		final int polynomialItemSize = 2 * Float.BYTES;
 		
 		// Polynomials are copied in their 2^n form
-		this.inPolynomials = ctx.createDeviceBuffer(polynomialSize * 2 * 2 * polynomialItemSize);
+		this.fftIn = ctx.createDeviceBuffer(polynomialSize * 2 * 2 * polynomialItemSize);
 		
 		// During preparation for the FFT we will expand the 2^n in 2^(2n) form for multiplication, hence the doubling in size
-		this.inOutFFT = ctx.createBuffer(ByteBuffer.allocate(polynomialSize * 2 * 2 * polynomialItemSize).order(LITTLE_ENDIAN));
-		
-		// multiplication output requires 2^(2n) form
-		this.outMul = ctx.createBuffer(ByteBuffer.allocate(polynomialSize * 2 * polynomialItemSize).order(LITTLE_ENDIAN));
+		this.fftOut = ctx.createDeviceBuffer(polynomialSize * 2 * 2 * polynomialItemSize);
 		
 		// FFT Kernel and parameters
 		this.fftKernel = program.buildKernel("fft");
-		fftKernel.setArg(0, inOutFFT.pointer());
+		fftKernel.setArg(0, fftOut.pointer());
 		
 		// multiplication kernel
 		this.multiplyKernel = program.buildKernel("multiply");
-		multiplyKernel.setArg(0, inOutFFT.pointer());
-		multiplyKernel.setArg(1, outMul.pointer());
+		multiplyKernel.setArg(0, fftOut.pointer());
+		multiplyKernel.setArg(1, fftIn.pointer());
 		multiplyKernel.setArg(2, polynomialSize * 2);
 		
 		// FFT Prepare complex kernel and parameters
@@ -122,8 +111,8 @@ public class GPUMultiply {
 
 		// Finalize multiplication
 		this.finalizeMultiplicationKernel = program.buildKernel("finalizeMultiplication");
-		finalizeMultiplicationKernel.setArg(0, inOutFFT.pointer());
-		finalizeMultiplicationKernel.setArg(1, inPolynomials.pointer());
+		finalizeMultiplicationKernel.setArg(0, fftOut.pointer());
+		finalizeMultiplicationKernel.setArg(1, fftIn.pointer());
 		finalizeMultiplicationKernel.setArg(2, polynomialSize);
 	}
 
@@ -141,23 +130,23 @@ public class GPUMultiply {
 		checkSize(b.data());
 		
 		// Send polynomials to GPU
-		inPolynomials.write(0, a.data());
-		inPolynomials.write(a.data().capacity() * 2, b.data());
+		fftIn.write(0, a.data());
+		fftIn.write(a.data().capacity() * 2, b.data());
 		
 		// Prepare data for FFT (2 polynomials of size 2^2n)
-		runFFT(inPolynomials.pointer(), polynomialSize * 2, polynomialCount);
+		runFFT(fftIn.pointer(), polynomialSize * 2, polynomialCount);
 		
 		// Perform multiplication on one polynomial size which contains 2 elements (re + im)
 		multiplyKernel.run(polynomialSize * 2);
 		
 		// Run reverse FFT - Only first half (lower powers of n) of it is needed
-		runFFT(outMul.pointer(), polynomialSize * 2, 1);
+		runFFT(fftIn.pointer(), polynomialSize * 2, 1);
 		
 		// Finalize multiplication and compress result. This kernel brings us back from 2n polynomials to n.
 		finalizeMultiplicationKernel.run(polynomialSize);
 		
 		// Read and return result
-		return new ComplexPolynomial(inPolynomials.read(ByteBuffer.allocate(a.data().capacity()).order(ByteOrder.LITTLE_ENDIAN)));
+		return new ComplexPolynomial(fftIn.read(ByteBuffer.allocate(a.data().capacity()).order(ByteOrder.LITTLE_ENDIAN)));
 	}
 
 	/**
@@ -170,7 +159,7 @@ public class GPUMultiply {
 		final int rounds = (int)(Math.log(itemSize) / Math.log(2));
 		// First step of the FFT
 		fftFirstStepKernel.setArg(0, input);
-		fftFirstStepKernel.setArg(1, inOutFFT.pointer());
+		fftFirstStepKernel.setArg(1, fftOut.pointer());
 		fftFirstStepKernel.setArg(2, rounds);
 		fftFirstStepKernel.setArg(3, itemSize);
 		fftFirstStepKernel.run(itemCount * itemSize / 2, 128);
