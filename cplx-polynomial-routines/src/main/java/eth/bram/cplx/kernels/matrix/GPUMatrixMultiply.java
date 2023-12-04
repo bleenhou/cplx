@@ -35,9 +35,8 @@ public class GPUMatrixMultiply {
 
 	/**
 	 * MAX_ROWS to process in parallel.
-	 * This value has an impact on the register usage of the multiplication kernel.
 	 */
-	private static final int MAX_ROWS = 16;
+	private static final int MAX_ROWS = 8;
 	
 	/**
 	 * GPU context wrapper
@@ -121,7 +120,7 @@ public class GPUMatrixMultiply {
 		// Create context and kernels
 		// There is one FFT kernel per matrix so that we set arguments once and for all (prevent threading issues setting arguments)
 		this.ctx = GPUContext.create(deviceId);
-		final GPUProgram program = ctx.createProgram(Arrays.asList(CudaSource.getSource("kernels.cu").replace("#define MAX_ROWS 8", "#define MAX_ROWS " + MAX_ROWS)));
+		final GPUProgram program = ctx.createProgram(Arrays.asList(CudaSource.getSource("kernels.cu")));
 		this.fftFirstStepKernelA = program.buildKernel("fftFirstStep");
 		this.fftFirstStepKernelB = program.buildKernel("fftFirstStep");
 		this.fftFirstStepKernelReverse = program.buildKernel("fftFirstStep");
@@ -296,11 +295,11 @@ public class GPUMatrixMultiply {
 		kPrepare.setArg(1, output.pointer());
 		kPrepare.setArg(2, rounds);
 		kPrepare.setArg(3, itemSize);
-		kPrepare.run(itemCount * itemSize / 2);
+		kPrepare.run(itemCount * itemSize / 2, 128);
 		// Run FFT kernels for log2 rounds.
 		for (int i = 2 ; i <= rounds ; ++i) {
 			kRun.setArg(1, 1 << i);
-			kRun.run(itemCount * itemSize / 2);
+			kRun.run(itemCount * itemSize / 2, 128);
 		}
 	}
 	

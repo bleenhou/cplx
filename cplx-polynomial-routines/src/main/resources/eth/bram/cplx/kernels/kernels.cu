@@ -157,10 +157,10 @@ extern "C" __global__ void multiplyMatrix(float2 * A, float2 * B, float2 * out, 
 	const int col =  polynomialId % columnCount;
 	B += col * width * polynomialSize;
 	
-	float2 sums [MAX_ROWS];
+	__shared__  float2 sums [MAX_ROWS * 128];
 	for (int i = 0 ; i < MAX_ROWS ; ++i) {
-		sums[i].x = 0.0;
-		sums[i].y = 0.0;
+		sums[BLOCK_IDX + BLOCK_SIZE * i].x = 0.0;
+		sums[BLOCK_IDX + BLOCK_SIZE * i].y = 0.0;
 	}
 	
 	// Sum the point to point multiplication
@@ -168,14 +168,14 @@ extern "C" __global__ void multiplyMatrix(float2 * A, float2 * B, float2 * out, 
 		const float2 b = B[i * polynomialSize + polynomialElement];
 		for (int line = 0 ; line < rowCount ; ++line) {
 			float2 a = A[line * width * polynomialSize + i * polynomialSize + polynomialElement];
-			sums[line].x += a.x * b.x - a.y * b.y; 
-			sums[line].y += a.x * b.y + a.y * b.x; 
+			sums[BLOCK_IDX + BLOCK_SIZE * line].x += a.x * b.x - a.y * b.y; 
+			sums[BLOCK_IDX + BLOCK_SIZE * line].y += a.x * b.y + a.y * b.x; 
 		}
 	}
 	
 	// Store in global
 	for (int line = 0 ; line < rowCount ; ++line) {
-		out[line * polynomialSize * columnCount + col * polynomialSize + polynomialElement] = conjugate(sums[line]);
+		out[line * polynomialSize * columnCount + col * polynomialSize + polynomialElement] = conjugate(sums[BLOCK_IDX + BLOCK_SIZE * line]);
 	}
 }
 
