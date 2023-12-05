@@ -2,7 +2,9 @@ package eth.bram.cplx.kernels.matrix;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -201,11 +203,12 @@ public class GPUMatrixMultiply {
 		final ComplexPolynomial[][] c = new ComplexPolynomial[aHeight][bWidth];
 		
 		// Pool to parallelize copy and execution
+		final ExecutorService bufferCreationPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2);
 		final ExecutorService pool = Executors.newFixedThreadPool(4);
 		Future<?> resultCopy = CompletableFuture.completedFuture(null);
 		
 		// Iterate column per column
-		Future<?> colCopy = pool.submit(() -> copyColumns(columns, B, 0, Math.min(columnPerSlice, bWidth)));
+		Future<?> colCopy = pool.submit(() -> copyColumns(bufferCreationPool, columns, B, 0, Math.min(columnPerSlice, bWidth)));
 		for (int i = 0 ; i < bWidth ; i += Math.min(bWidth - i, columnPerSlice)) {
 			
 			// Number of columns this round
@@ -223,11 +226,11 @@ public class GPUMatrixMultiply {
 				ensureFinished(fftColumns); // Copy only when FFT is finished
 				final int from = startColumn + columnPerSlice;
 				final int to = from + columnPerSlice;
-				copyColumns(columns, B, Math.min(from, bWidth), Math.min(to, bWidth));
+				copyColumns(bufferCreationPool, columns, B, Math.min(from, bWidth), Math.min(to, bWidth));
 			});
 			
 			// Copy the first row asynchronously
-			Future<?> rowCopy = pool.submit(() -> copyRows(lines, A, 0, Math.min(rowsPerSlice, aHeight)));
+			Future<?> rowCopy = pool.submit(() -> copyRows(bufferCreationPool, lines, A, 0, Math.min(rowsPerSlice, aHeight)));
 			for (int j = 0 ; j < aHeight ; j += Math.min(aHeight - j, rowsPerSlice)) {
 				
 				// Number of rows this round
@@ -245,7 +248,7 @@ public class GPUMatrixMultiply {
 				rowCopy = pool.submit(() -> {
 					final int from = startRow + rowsPerSlice;
 					final int to = from + rowsPerSlice;
-					copyRows(lines, A, Math.min(from, aHeight), Math.min(to, aHeight));
+					copyRows(bufferCreationPool, lines, A, Math.min(from, aHeight), Math.min(to, aHeight));
 				});
 				
 				// Make sure columns have been FFT'ed before starting the multiplication
@@ -288,6 +291,7 @@ public class GPUMatrixMultiply {
 		System.out.println("WAIT(READ(RES)) : " + COPY_RES_TIMER.get() / 1000000 + " ms");
 		
 		pool.shutdown();
+		bufferCreationPool.shutdown();
 		return c;
 	}
 
@@ -343,38 +347,42 @@ public class GPUMatrixMultiply {
 	/**
 	 * Columnar copy of the B matrix at the specified indexes
 	 */
-	private void copyColumns(GPUBuffer polynomials, ComplexPolynomial[][] p, int from, int to) {
+	private void copyColumns(ExecutorService exc, GPUBuffer polynomials, ComplexPolynomial[][] p, int from, int to) {
 		if (from == to) {
 			return;
 		}
-		polynomials.buffer().rewind();
+		final List<Future<?>> futures = new ArrayList<>((to - from) * p.length);
 		for (int column = from; column < to ; ++column) {
 			for (int i = 0 ; i < p.length ; ++i) {
 				// Position buffer to leave gaps
 				final ByteBuffer data = p[i][column].data();
-				polynomials.buffer().put(data.rewind());
-				polynomials.buffer().position(polynomials.buffer().position() + data.capacity());
-
+				final ByteBuffer offset = polynomials.buffer().duplicate();
+				offset.position(((column - from) * p.length + i) * data.capacity() * 2);
+				futures.add(exc.submit(() -> offset.put(data.rewind())));
 			}
 		}
+		futures.forEach(GPUMatrixMultiply::ensureFinished);
 		polynomials.write();
 	}
 
 	/**
 	 * Linear copy of the A matrix at the specified indexes
 	 */
-	private void copyRows(GPUBuffer polynomials, ComplexPolynomial[][] p, int from, int to) {
+	private void copyRows(ExecutorService exc, GPUBuffer polynomials, ComplexPolynomial[][] p, int from, int to) {
 		if (from == to) {
 			return;
 		}
-		polynomials.buffer().rewind();
+		final List<Future<?>> futures = new ArrayList<>((to - from) * p.length);
 		for (int row = from; row < to ; ++row) {
 			for (int i = 0 ; i < p[row].length ; ++i) {
+				// Position buffer to leave gaps
 				final ByteBuffer data = p[row][i].data().rewind();
-				polynomials.buffer().put(data.rewind());
-				polynomials.buffer().position(polynomials.buffer().position() + data.capacity());
+				final ByteBuffer offset = polynomials.buffer().duplicate();
+				offset.position(((row - from) * p[row].length + i) * data.capacity() * 2);
+				futures.add(exc.submit(() -> offset.put(data.rewind())));
 			}
 		}
+		futures.forEach(GPUMatrixMultiply::ensureFinished);
 		polynomials.write();
 	}
 	
