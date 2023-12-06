@@ -97,13 +97,11 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
 	int localIdxInSlice = idxInSlice % 128;
 	localFFT[localIdxInSlice * 2] = add(q, w);
 	localFFT[localIdxInSlice * 2 + 1] = sub(q, w);
+	__syncthreads();
 	
-    int size = 2;
-    while(size < 64 && itemSize > 2) {
-    	
-    	// Bump size
-    	size *= 2;
-    	itemSize >>= 1;
+    int size = 4;
+    int localRounds = GLOBAL_SIZE;
+    while(size <= 64 && localRounds > 1) {
     	
     	// Offset
     	int offset = ((localIdxInSlice * 2) / size) * size;
@@ -117,17 +115,20 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
         w.x = cos(kth);
         w.y = sin(kth);
         
-        __syncthreads();
     	q = localFFT[offset + k];
     	r = localFFT[offset + k + size / 2];
     	
     	w = mul(w, r);
     	localFFT[offset + k] = add(q, w);
     	localFFT[offset + k + size / 2] = sub(q, w);
+    	__syncthreads();
+    	
+    	// Bump size
+    	size <<= 1;
+    	localRounds >>= 1;
     }
 	
     // Store last result
-    __syncthreads();
     out[idxInSlice * 2] = localFFT[localIdxInSlice * 2];
     out[idxInSlice * 2 + 1] = localFFT[localIdxInSlice * 2 + 1];
 }
