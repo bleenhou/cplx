@@ -64,7 +64,7 @@ public class GPUAdd {
 		
 		// Create context and program
 		this.ctx = GPUContext.create(deviceId);
-		final GPUProgram program = ctx.createProgram(Arrays.asList(CudaSource.getSource("kernels.cu")));
+		final GPUProgram program = ctx.createProgram(Arrays.asList(CudaSource.getSource()));
 		this.add = program.buildKernel("add");
 		
 		// Create buffers for A and B. 2 bytes per polynomial element (real and immaginary)

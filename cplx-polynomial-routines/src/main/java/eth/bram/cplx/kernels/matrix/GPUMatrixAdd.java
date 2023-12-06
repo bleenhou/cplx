@@ -60,7 +60,7 @@ public class GPUMatrixAdd {
 		
 		// Create GPU context and kernels
 		this.ctx = GPUContext.create(deviceId);
-		final GPUProgram program = ctx.createProgram(Arrays.asList(CudaSource.getSource("kernels.cu")));
+		final GPUProgram program = ctx.createProgram(Arrays.asList(CudaSource.getSource()));
 		this.addKernel = program.buildKernel("add");
 	}
 

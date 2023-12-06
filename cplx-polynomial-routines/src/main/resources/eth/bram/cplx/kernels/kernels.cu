@@ -147,35 +147,70 @@ extern "C" __global__ void multiply(float2 * A, float2 * B) {
 * @param rowCount number of rows we are processing
 * @param width width of a matrix A line (or matrix B column)
 */
-#define MAX_ROWS 8
+#define MAX_ROWS_REG 8
+#define MAX_ROWS_SHARED 8
+#define UNROLL_SIZE 4
+#define LOCAL_SIZE_MATRIX_MULTIPLY <LOCAL_SIZE_MATRIX_MULTIPLY>
 extern "C" __global__ void multiplyMatrix(float2 * A, float2 * B, float2 * out, int polynomialSize, int columnCount, int rowCount, int width) {
 	
 	// Offset computation for buffers
 	const int polynomialId = GLOBAL_IDX / polynomialSize;
 	const int polynomialElement = GLOBAL_IDX % polynomialSize;
-
 	const int col =  polynomialId % columnCount;
-	B += col * width * polynomialSize;
 	
-	float2 sums [MAX_ROWS];
-	for (int i = 0 ; i < MAX_ROWS ; ++i) {
-		sums[i].x = 0.0;
-		sums[i].y = 0.0;
+	// Init value
+	float2 zero;
+	zero.x = 0.0;
+	zero.y = 0.0;
+
+	// Store part of the data in registers
+	float2 sumsReg [MAX_ROWS_REG];
+	#pragma unroll MAX_ROWS_REG
+	for (int line = 0 ; line < MAX_ROWS_REG ; ++line) {
+		sumsReg[line] = zero;
+	}
+	
+	// Store part of the data in local memory
+	__shared__ float2 sumsShared [MAX_ROWS_SHARED * LOCAL_SIZE_MATRIX_MULTIPLY];
+	#pragma unroll MAX_ROWS_SHARED
+	for (int line = 0 ; line < MAX_ROWS_SHARED ; ++line) {
+		sumsShared[BLOCK_IDX + BLOCK_SIZE * line] = zero;
 	}
 	
 	// Sum the point to point multiplication
 	for (int i = 0 ; i < width ; ++i) {
-		const float2 b = B[i * polynomialSize + polynomialElement];
-		for (int line = 0 ; line < rowCount ; ++line) {
+		const float2 b = B[col * width * polynomialSize + i * polynomialSize + polynomialElement];
+		
+		int line = 0;
+		#pragma unroll UNROLL_SIZE
+		for ( ; line < rowCount && line < 8 ; ++line) {
 			float2 a = A[line * width * polynomialSize + i * polynomialSize + polynomialElement];
-			sums[line].x += a.x * b.x - a.y * b.y; 
-			sums[line].y += a.x * b.y + a.y * b.x; 
+			float2 data = sumsReg[line];
+			data.x += a.x * b.x - a.y * b.y; 
+			data.y += a.x * b.y + a.y * b.x; 
+			sumsReg[line] = data;
+		}
+		
+		#pragma unroll UNROLL_SIZE
+		for ( ; line < rowCount ; ++line) {
+			float2 a = A[line * width * polynomialSize + i * polynomialSize + polynomialElement];
+			float2 data = sumsShared[BLOCK_IDX + BLOCK_SIZE * (line - MAX_ROWS_REG)];
+			data.x += a.x * b.x - a.y * b.y; 
+			data.y += a.x * b.y + a.y * b.x; 
+			sumsShared[BLOCK_IDX + BLOCK_SIZE * (line - MAX_ROWS_REG)] = data;
 		}
 	}
 	
 	// Store in global
-	for (int line = 0 ; line < rowCount ; ++line) {
-		out[line * polynomialSize * columnCount + col * polynomialSize + polynomialElement] = conjugate(sums[line]);
+	int line = 0;
+	#pragma unroll UNROLL_SIZE
+	for ( ; line < rowCount && line < 8 ; ++line) {
+		out[line * polynomialSize * columnCount + col * polynomialSize + polynomialElement] = conjugate(sumsReg[line]);
+	}
+	
+	#pragma unroll UNROLL_SIZE
+	for ( ; line < rowCount ; ++line) {
+		out[line * polynomialSize * columnCount + col * polynomialSize + polynomialElement] = conjugate(sumsShared[BLOCK_IDX + BLOCK_SIZE * (line - MAX_ROWS_REG)]);
 	}
 }
 
