@@ -318,14 +318,14 @@ public class GPUMatrixMultiply {
 	
 	private void runFFT(GPUKernel kPrepare, GPUKernel kRun, GPUPointer input, GPUPointer output, int itemSize, int itemCount) {
 		final int rounds = (int)(Math.log(itemSize) / Math.log(2));
-		// First step of the FFT
+		// First steps of the FFT - up to 6 rounds
 		kPrepare.setArg(0, input);
 		kPrepare.setArg(1, output);
 		kPrepare.setArg(2, rounds);
 		kPrepare.setArg(3, itemSize);
 		kPrepare.run(itemCount * itemSize / 2, 128);
-		// Run FFT kernels for log2 rounds.
-		for (int i = 2 ; i <= rounds ; ++i) {
+		// Run remaining FFT kernels for up to log2(size) - 6.
+		for (int i = 7 ; i <= rounds ; ++i) {
 			kRun.setArg(1, 1 << i);
 			kRun.run(itemCount * itemSize / 2, 128);
 		}

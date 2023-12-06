@@ -143,7 +143,7 @@ public class GPUMultiply {
 	 */
 	public ComplexPolynomial mul(ComplexPolynomial a, ComplexPolynomial b) {
 
-		final ExecutorService pool = Executors.newFixedThreadPool(3);
+		final ExecutorService pool = Executors.newFixedThreadPool(1);
 		final Future<?> copyAndFFTA = pool.submit(() -> {
 			checkSize(a.data());
 			A.write(0, a.data());
@@ -182,16 +182,16 @@ public class GPUMultiply {
 	 * @param itemSize size of each item of the FFT in the provided buffer
 	 * @param itemCount number of items to run FFT on in the provided buffer
 	 */
-	private void runFFT(GPUDeviceBuffer input, GPUDeviceBuffer output, GPUKernel firstStep, GPUKernel fft, int itemSize, int itemCount) {
+	private void runFFT(GPUDeviceBuffer input, GPUDeviceBuffer output, GPUKernel firstSteps, GPUKernel fft, int itemSize, int itemCount) {
 		final int rounds = (int)(Math.log(itemSize) / Math.log(2));
-		// First step of the FFT
-		firstStep.setArg(0, input.pointer());
-		firstStep.setArg(1, output.pointer());
-		firstStep.setArg(2, rounds);
-		firstStep.setArg(3, itemSize);
-		firstStep.run(itemCount * itemSize / 2, 128);
-		// Run FFT kernels for log2 rounds.
-		for (int i = 2 ; i <= rounds ; ++i) {
+		// First steps of the FFT - up to 6 rounds
+		firstSteps.setArg(0, input.pointer());
+		firstSteps.setArg(1, output.pointer());
+		firstSteps.setArg(2, rounds);
+		firstSteps.setArg(3, itemSize);
+		firstSteps.run(itemCount * itemSize / 2, 128);
+		// Run remaining FFT kernels for up to log2(size) - 6.
+		for (int i = 7 ; i <= rounds ; ++i) {
 			fft.setArg(0, output.pointer());
 			fft.setArg(1, 1 << i);
 			fft.run(itemCount * itemSize / 2, 128);

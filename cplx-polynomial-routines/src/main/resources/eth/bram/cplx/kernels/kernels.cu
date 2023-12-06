@@ -75,15 +75,16 @@ extern "C" __global__ void add(float2 * A, float2 * B, float2 * res)
  * @param rounds number of fft rounds which will be run.
  * @param size size of the input object.
  */
-extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, int size) {
+#define LOCAL_SIZE 128
+extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, int itemSize) {
 
 	// Offset buffer according to which slice we will be working on
-	const int idx = GLOBAL_IDX / (size / 2);
-	const int idxInSlice = GLOBAL_IDX % (size / 2);
-	in += idx * size;
-	out += idx * size;
+	const int idx = GLOBAL_IDX / (itemSize / 2);
+	const int idxInSlice = GLOBAL_IDX % (itemSize / 2);
+	in += idx * itemSize;
+	out += idx * itemSize;
 
-	// k = 0
+	// First iteration, size = 2
     float2 w;
     w.x = 1; // cos(0)
     w.y = 0; // sin(0)
@@ -92,9 +93,47 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
 	float2 q = in[__brev(idxInSlice * 2) >> (32 - rounds)];
 	float2 r = in[__brev(idxInSlice * 2 + 1) >> (32 - rounds)];
 	w = mul(w, r);
-    out[idxInSlice * 2] = add(q, w);
-    out[idxInSlice * 2 + 1] = sub(q, w);
-	    
+	
+	__shared__ float2 localFFT [LOCAL_SIZE * 2];
+	const int localIdxInSlice = GLOBAL_IDX % LOCAL_SIZE;
+	localFFT[localIdxInSlice * 2] = add(q, w);
+	localFFT[localIdxInSlice * 2 + 1] = sub(q, w);
+	__syncthreads();
+	
+	// Run as many iterations in local memory as we can.
+	// We are blocked at 64 because it reads two blocks of 32. 
+	// Anything higher than that and we will run into wrap concurency issues
+    int size = 4;
+    int localRounds = itemSize / 2;
+    while(size <= 64 && localRounds > 1) {
+    	
+    	// Offset
+    	int offset = ((localIdxInSlice * 2) / size) * size;
+    	
+    	// Item we are handling in the subset
+    	int k = localIdxInSlice % (size / 2);
+    	
+    	// Compute kth root of unity
+        float kth = (-2.0f * PI * k) / size;
+        w.x = cos(kth);
+        w.y = sin(kth);
+        
+    	q = localFFT[offset + k];
+    	r = localFFT[offset + k + size / 2];
+    	
+    	w = mul(w, r);
+    	localFFT[offset + k] = add(q, w);
+    	localFFT[offset + k + size / 2] = sub(q, w);
+    	__syncthreads();
+    	
+    	// Bump size
+    	size <<= 1;
+    	localRounds >>= 1;
+    }
+	
+    // Store last result
+    out[idxInSlice * 2] = localFFT[localIdxInSlice * 2];
+    out[idxInSlice * 2 + 1] = localFFT[localIdxInSlice * 2 + 1];
 }
 
 /**
