@@ -176,7 +176,8 @@ public class GPUMatrixMultiply {
 		
 		// Check how many multiplications we can run in parallel
 		final int polynomialSizeInBytes = polynomialSize * 2 * Float.BYTES;
-		final long lineSize = aWidth * polynomialSizeInBytes * 2;
+		final int widePolynomialSizeInBytes = polynomialSizeInBytes * 2;
+		final long lineSize = aWidth * widePolynomialSizeInBytes;
 		final long columnSize = lineSize; // alias for readability
 		final int rowsPerSlice = (int) Math.min(Math.min(aHeight, maxBufferSizeA / lineSize), MAX_ROWS);
 		final int columnPerSlice = (int) Math.min(bWidth, maxBufferSizeB / columnSize);
@@ -193,13 +194,13 @@ public class GPUMatrixMultiply {
 		// Create buffers for FFT Representation of polynomials
 		final GPUDeviceBuffer AFFT = ctx.createDeviceBuffer(lineSize * rowsPerSlice);
 		final GPUDeviceBuffer BFFT = ctx.createDeviceBuffer(columnSize * columnPerSlice);
-		final GPUDeviceBuffer FFTReverse = ctx.createDeviceBuffer(rowsPerSlice * columnPerSlice * polynomialSizeInBytes * 2);
+		final GPUDeviceBuffer FFTReverse = ctx.createDeviceBuffer(rowsPerSlice * columnPerSlice * widePolynomialSizeInBytes);
 		fftKernelA.setArg(0, AFFT.pointer());
 		fftKernelB.setArg(0, BFFT.pointer());
 		finalizeMultiplicationKernel.setArg(0, FFTReverse.pointer());
 		
 		// Buffer for multiplication 
-		final GPUDeviceBuffer ccOut = ctx.createDeviceBuffer(rowsPerSlice * columnPerSlice * polynomialSizeInBytes * 2);
+		final GPUDeviceBuffer ccOut = ctx.createDeviceBuffer(rowsPerSlice * columnPerSlice * widePolynomialSizeInBytes);
 		multiplyMatrixKernel.setArg(0, AFFT.pointer());
 		multiplyMatrixKernel.setArg(1, BFFT.pointer());
 		multiplyMatrixKernel.setArg(2, ccOut.pointer());
