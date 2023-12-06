@@ -93,9 +93,10 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
 	float2 r = in[__brev(idxInSlice * 2 + 1) >> (32 - rounds)];
 	w = mul(w, r);
 	
-	__shared__ float2 localFFT [64];
-	localFFT[idxInSlice * 2] = add(q, w);
-	localFFT[idxInSlice * 2 + 1] = sub(q, w);
+	__shared__ float2 localFFT [256];
+	int localIdxInSlice = idxInSlice % 128;
+	localFFT[localIdxInSlice * 2] = add(q, w);
+	localFFT[localIdxInSlice * 2 + 1] = sub(q, w);
 	
     int size = 2;
     while(size < 4) {
@@ -104,10 +105,10 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
     	size *= 2;
     	
     	// Offset
-    	int offset = ((idxInSlice * 2) / size) * size;
+    	int offset = ((localIdxInSlice * 2) / size) * size;
     	
     	// Item we are handling in the subset
-    	int k = idxInSlice % (size / 2);
+    	int k = localIdxInSlice % (size / 2);
     	
     	// Compute kth root of unity
         float kth = (-2.0f * PI * k) / size;
@@ -126,8 +127,8 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
 	
     // Store last result
     __syncthreads();
-    out[idxInSlice * 2] = localFFT[idxInSlice * 2];
-    out[idxInSlice * 2 + 1] = localFFT[idxInSlice * 2 + 1];
+    out[idxInSlice * 2] = localFFT[localIdxInSlice * 2];
+    out[idxInSlice * 2 + 1] = localFFT[localIdxInSlice * 2 + 1];
 }
 
 /**
