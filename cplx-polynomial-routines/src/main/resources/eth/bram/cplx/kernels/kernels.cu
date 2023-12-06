@@ -99,10 +99,11 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
 	localFFT[localIdxInSlice * 2 + 1] = sub(q, w);
 	
     int size = 2;
-    while(size < 4) {
+    while(size < 64 && itemSize > 2) {
     	
     	// Bump size
     	size *= 2;
+    	itemSize >>= 1;
     	
     	// Offset
     	int offset = ((localIdxInSlice * 2) / size) * size;
