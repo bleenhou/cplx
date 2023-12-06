@@ -38,9 +38,14 @@ import eth.bram.cplx.kernels.CudaSource;
 public class GPUMatrixMultiply {
 
 	/**
-	 * MAX_ROWS to process in parallel.
+	 * MAX_ROWS to process in parallel during matrix multiply
 	 */
-	private static final int MAX_ROWS = 8;
+	private static final int MAX_ROWS = 16;
+	
+	/**
+	 * Local size to use for matrix multiply. Has an impact on the shared memory used.
+	 */
+	private static final int LOCAL_SIZE_MATRIX_MULTIPLY = 128;
 	
 	/**
 	 * GPU context wrapper
@@ -124,7 +129,7 @@ public class GPUMatrixMultiply {
 		// Create context and kernels
 		// There is one FFT kernel per matrix so that we set arguments once and for all (prevent threading issues setting arguments)
 		this.ctx = GPUContext.create(deviceId);
-		final GPUProgram program = ctx.createProgram(Arrays.asList(CudaSource.getSource("kernels.cu")));
+		final GPUProgram program = ctx.createProgram(Arrays.asList(CudaSource.getSource(LOCAL_SIZE_MATRIX_MULTIPLY)));
 		this.fftFirstStepKernelA = program.buildKernel("fftFirstStep");
 		this.fftFirstStepKernelB = program.buildKernel("fftFirstStep");
 		this.fftFirstStepKernelReverse = program.buildKernel("fftFirstStep");
@@ -260,7 +265,7 @@ public class GPUMatrixMultiply {
 				multiplyMatrixKernel.setArg(5, rowCount);
 				multiplyMatrixKernel.setArg(6, aWidth);
 				then = System.nanoTime();
-				multiplyMatrixKernel.run(columnCount * polynomialSize * 2, 128);
+				multiplyMatrixKernel.run(columnCount * polynomialSize * 2, LOCAL_SIZE_MATRIX_MULTIPLY);
 				MUL_TIMER.addAndGet(System.nanoTime() - then);
 				
 				// Reverse FFT

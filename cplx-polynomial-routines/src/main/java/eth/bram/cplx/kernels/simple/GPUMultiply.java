@@ -109,7 +109,7 @@ public class GPUMultiply {
 		
 		this.polynomialSize = polynomialSize;
 		this.ctx = GPUContext.create(deviceId);
-		final GPUProgram program = ctx.createProgram(Arrays.asList(CudaSource.getSource("kernels.cu")));
+		final GPUProgram program = ctx.createProgram(Arrays.asList(CudaSource.getSource()));
 		final int polynomialItemSize = 2 * Float.BYTES;
 		
 		// Polynomials are copied in their 2^n form
