@@ -38,10 +38,10 @@ public class ComplexPolynomialOperations {
 	 * @param sliceSizeA if matrix computations have to be sliced, max buffer size (in bytes) for matrix A.
 	 * @param sliceSizeB if matrix computations have to be sliced, max buffer size (in bytes) for matrix B.
 	 */
-	public ComplexPolynomialOperations(int polynomialSize, int sliceSizeA, int sliceSizeB) {
+	public ComplexPolynomialOperations(int polynomialSize, long sliceSizeA, long sliceSizeB) {
 		this.add = new GPUAdd(0, polynomialSize);
 		this.multiply = new GPUMultiply(0, polynomialSize);
-		this.matrixAdd = new GPUMatrixAdd(0, polynomialSize, sliceSizeB);
+		this.matrixAdd = new GPUMatrixAdd(0, polynomialSize, (int) sliceSizeA);
 		this.matrixMultiply = new GPUMatrixMultiply(0, polynomialSize, sliceSizeA, sliceSizeB); 
 	}
 	
@@ -51,7 +51,7 @@ public class ComplexPolynomialOperations {
 	 */
 	public ComplexPolynomialOperations(int polynomialSize) {
 		// Default window size is 512Mb / 2047Mb
-		this(polynomialSize, 1024 * 1024 * 1024, 2047 * 1024 * 1024); 
+		this(polynomialSize, 1024L * 1024 * 1024, 4096L * 1024 * 1024); 
 	}
 	
 	/**
