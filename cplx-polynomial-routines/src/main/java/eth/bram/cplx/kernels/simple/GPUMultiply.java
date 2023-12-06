@@ -189,6 +189,7 @@ public class GPUMultiply {
 		firstStep.setArg(1, output.pointer());
 		firstStep.setArg(2, rounds);
 		firstStep.setArg(3, itemSize);
+		System.out.println(itemCount * itemSize / 2);
 		firstStep.run(itemCount * itemSize / 2, 128);
 		// Run remaining FFT kernels for log2 rounds.
 		for (int i = 7 ; i <= rounds ; ++i) {

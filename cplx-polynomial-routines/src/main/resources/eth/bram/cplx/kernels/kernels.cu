@@ -93,8 +93,8 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
 	float2 r = in[__brev(idxInSlice * 2 + 1) >> (32 - rounds)];
 	w = mul(w, r);
 	
-	__shared__ float2 localFFT [128];
-	int localIdxInSlice = idxInSlice % 128;
+	__shared__ float2 localFFT [256];
+	const int localIdxInSlice = idxInSlice % 128;
 	localFFT[localIdxInSlice * 2] = add(q, w);
 	localFFT[localIdxInSlice * 2 + 1] = sub(q, w);
 	__syncthreads();
