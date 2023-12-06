@@ -83,7 +83,7 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
 	in += idx * itemSize;
 	out += idx * itemSize;
 
-	// k = 0
+	// First iteration, size = 2
     float2 w;
     w.x = 1; // cos(0)
     w.y = 0; // sin(0)
@@ -99,6 +99,7 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
 	localFFT[localIdxInSlice * 2 + 1] = sub(q, w);
 	__syncthreads();
 	
+	// Run as many iterations in local memory as we can
     int size = 4;
     int localRounds = GLOBAL_SIZE;
     while(size <= 64 && localRounds > 1) {
