@@ -98,7 +98,6 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
 	const int localIdxInSlice = GLOBAL_IDX % LOCAL_SIZE;
 	localFFT[localIdxInSlice * 2] = add(q, w);
 	localFFT[localIdxInSlice * 2 + 1] = sub(q, w);
-	__syncthreads();
 	
 	// Run as many iterations in local memory as we can.
 	// We are blocked at 64 because it reads two blocks of 32. 
@@ -118,13 +117,13 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
         w.x = cos(kth);
         w.y = sin(kth);
         
+        __syncthreads();
     	q = localFFT[offset + k];
     	r = localFFT[offset + k + size / 2];
     	
     	w = mul(w, r);
     	localFFT[offset + k] = add(q, w);
     	localFFT[offset + k + size / 2] = sub(q, w);
-    	__syncthreads();
     	
     	// Bump size
     	size <<= 1;
@@ -132,6 +131,7 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
     }
 	
     // Store last result
+    __syncthreads();
     out[idxInSlice * 2] = localFFT[localIdxInSlice * 2];
     out[idxInSlice * 2 + 1] = localFFT[localIdxInSlice * 2 + 1];
 }

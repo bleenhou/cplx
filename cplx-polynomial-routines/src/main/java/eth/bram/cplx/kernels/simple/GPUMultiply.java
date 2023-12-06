@@ -168,7 +168,7 @@ public class GPUMultiply {
 		runFFT(fftA, A, fftFirstStepKernelA, fftKernelA, polynomialSize * 2, 1);
 		
 		// Finalize multiplication and compress result. This kernel brings us back from 2n polynomials to n.
-		finalizeMultiplicationKernel.run(polynomialSize);
+		finalizeMultiplicationKernel.run(polynomialSize, 128);
 		
 		// Read and return result
 		final ByteBuffer result = ensureFinished(allocateResult);

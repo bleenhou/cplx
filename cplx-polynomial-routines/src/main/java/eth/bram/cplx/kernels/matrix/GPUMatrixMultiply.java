@@ -275,7 +275,7 @@ public class GPUMatrixMultiply {
 				
 				// Finalize multiplication and compress result
 				ensureFinished(resultCopy); // Make sure results of previous slice have been retrieved before overriding buffer
-				finalizeMultiplicationKernel.run(polynomialCount * polynomialSize);
+				finalizeMultiplicationKernel.run(polynomialCount * polynomialSize, 128);
 				
 				// Read results and copy back asynchronously
 				resultCopy = pool.submit(() -> readResults(polynomialSizeInBytes, c, startColumn, columnCount, startRow, rowCount, result));
