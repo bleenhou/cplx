@@ -68,6 +68,7 @@ public class ComplexPolynomialGenarator {
 				matrix[i][j] = line.get(j);
 			}
 		}
+		exc.shutdown();
 		return matrix;
 	}
 	
