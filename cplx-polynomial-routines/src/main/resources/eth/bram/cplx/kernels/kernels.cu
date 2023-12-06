@@ -75,13 +75,13 @@ extern "C" __global__ void add(float2 * A, float2 * B, float2 * res)
  * @param rounds number of fft rounds which will be run.
  * @param size size of the input object.
  */
-extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, int size) {
+extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, int itemSize) {
 
 	// Offset buffer according to which slice we will be working on
-	const int idx = GLOBAL_IDX / (size / 2);
-	const int idxInSlice = GLOBAL_IDX % (size / 2);
-	in += idx * size;
-	out += idx * size;
+	const int idx = GLOBAL_IDX / (itemSize / 2);
+	const int idxInSlice = GLOBAL_IDX % (itemSize / 2);
+	in += idx * itemSize;
+	out += idx * itemSize;
 
 	// k = 0
     float2 w;
@@ -92,9 +92,42 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
 	float2 q = in[__brev(idxInSlice * 2) >> (32 - rounds)];
 	float2 r = in[__brev(idxInSlice * 2 + 1) >> (32 - rounds)];
 	w = mul(w, r);
-    out[idxInSlice * 2] = add(q, w);
-    out[idxInSlice * 2 + 1] = sub(q, w);
-	    
+	
+	__shared__ float2 localFFT [64];
+	localFFT[idxInSlice * 2] = add(q, w);
+	localFFT[idxInSlice * 2 + 1] = sub(q, w);
+	
+    int size = 2;
+    while(size < 4) {
+    	
+    	// Bump size
+    	size *= 2;
+    	
+    	// Offset
+    	int offset = ((idxInSlice * 2) / size) * size;
+    	
+    	// Item we are handling in the subset
+    	int k = idxInSlice % (size / 2);
+    	
+    	// Compute kth root of unity
+        float kth = (-2.0f * PI * k) / size;
+        float2 w;
+        w.x = cos(kth);
+        w.y = sin(kth);
+        
+        __syncthreads();
+    	q = localFFT[offset + k];
+    	r = localFFT[offset + k + size / 2];
+    	
+    	w = mul(w, r);
+    	localFFT[offset + k] = add(q, w);
+    	localFFT[offset + k + size / 2] = sub(q, w);
+    }
+	
+    // Store last result
+    __syncthreads();
+    out[idxInSlice * 2] = localFFT[idxInSlice * 2];
+    out[idxInSlice * 2 + 1] = localFFT[idxInSlice * 2 + 1];
 }
 
 /**
