@@ -75,6 +75,7 @@ extern "C" __global__ void add(float2 * A, float2 * B, float2 * res)
  * @param rounds number of fft rounds which will be run.
  * @param size size of the input object.
  */
+#define LOCAL_SIZE 128
 extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, int itemSize) {
 
 	// Offset buffer according to which slice we will be working on
@@ -93,15 +94,17 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
 	float2 r = in[__brev(idxInSlice * 2 + 1) >> (32 - rounds)];
 	w = mul(w, r);
 	
-	__shared__ float2 localFFT [256];
-	const int localIdxInSlice = idxInSlice % 128;
+	__shared__ float2 localFFT [LOCAL_SIZE * 2];
+	const int localIdxInSlice = GLOBAL_IDX % LOCAL_SIZE;
 	localFFT[localIdxInSlice * 2] = add(q, w);
 	localFFT[localIdxInSlice * 2 + 1] = sub(q, w);
 	__syncthreads();
 	
-	// Run as many iterations in local memory as we can
+	// Run as many iterations in local memory as we can.
+	// We are blocked at 64 because it reads two blocks of 32. 
+	// Anything higher than that and we will run into wrap concurency issues
     int size = 4;
-    int localRounds = GLOBAL_SIZE;
+    int localRounds = itemSize / 2;
     while(size <= 64 && localRounds > 1) {
     	
     	// Offset
@@ -112,7 +115,6 @@ extern "C" __global__ void fftFirstStep(float2 * in, float2 * out, int rounds, i
     	
     	// Compute kth root of unity
         float kth = (-2.0f * PI * k) / size;
-        float2 w;
         w.x = cos(kth);
         w.y = sin(kth);
         
