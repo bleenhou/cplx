@@ -188,7 +188,6 @@ extern "C" __global__ void multiply(float2 * A, float2 * B) {
 */
 #define MAX_ROWS_REG 8
 #define MAX_ROWS_SHARED 8
-#define UNROLL_SIZE 4
 #define LOCAL_SIZE_MATRIX_MULTIPLY <LOCAL_SIZE_MATRIX_MULTIPLY>
 extern "C" __global__ void multiplyMatrix(float2 * A, float2 * B, float2 * out, int polynomialSize, int columnCount, int rowCount, int width) {
 	
@@ -221,7 +220,7 @@ extern "C" __global__ void multiplyMatrix(float2 * A, float2 * B, float2 * out, 
 		const float2 b = B[col * width * polynomialSize + i * polynomialSize + polynomialElement];
 		
 		int line = 0;
-		#pragma unroll UNROLL_SIZE
+		#pragma unroll 2
 		for ( ; line < rowCount && line < 8 ; ++line) {
 			float2 a = A[line * width * polynomialSize + i * polynomialSize + polynomialElement];
 			float2 data = sumsReg[line];
@@ -230,7 +229,7 @@ extern "C" __global__ void multiplyMatrix(float2 * A, float2 * B, float2 * out, 
 			sumsReg[line] = data;
 		}
 		
-		#pragma unroll UNROLL_SIZE
+		#pragma unroll 8
 		for ( ; line < rowCount ; ++line) {
 			float2 a = A[line * width * polynomialSize + i * polynomialSize + polynomialElement];
 			float2 data = sumsShared[BLOCK_IDX + BLOCK_SIZE * (line - MAX_ROWS_REG)];
@@ -242,12 +241,12 @@ extern "C" __global__ void multiplyMatrix(float2 * A, float2 * B, float2 * out, 
 	
 	// Store in global
 	int line = 0;
-	#pragma unroll UNROLL_SIZE
+	#pragma unroll 2
 	for ( ; line < rowCount && line < 8 ; ++line) {
 		out[line * polynomialSize * columnCount + col * polynomialSize + polynomialElement] = conjugate(sumsReg[line]);
 	}
 	
-	#pragma unroll UNROLL_SIZE
+	#pragma unroll 8
 	for ( ; line < rowCount ; ++line) {
 		out[line * polynomialSize * columnCount + col * polynomialSize + polynomialElement] = conjugate(sumsShared[BLOCK_IDX + BLOCK_SIZE * (line - MAX_ROWS_REG)]);
 	}
