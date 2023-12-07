@@ -50,9 +50,4 @@ class CudaDeviceBuffer implements GPUDeviceBuffer {
 		cuStreamSynchronize(stream);
 		return data;
 	}
-
-	@Override
-	public void writeAsync(long offset, ByteBuffer data) {
-		cuMemcpyHtoDAsync(ptr.withByteOffset(offset), Pointer.to(data), data.capacity(), stream);
-	}
 }

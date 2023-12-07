@@ -20,5 +20,4 @@ public interface GPUContext {
 	GPUDeviceBuffer createDeviceBuffer(long size);
 
 	void release();
-
 }

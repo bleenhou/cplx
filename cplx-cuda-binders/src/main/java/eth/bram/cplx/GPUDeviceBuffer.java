@@ -8,8 +8,6 @@ public interface GPUDeviceBuffer {
 
 	void write(long offset, ByteBuffer data);
 	
-	void writeAsync(long offset, ByteBuffer data);
-	
 	ByteBuffer read(ByteBuffer data);
 
 }
