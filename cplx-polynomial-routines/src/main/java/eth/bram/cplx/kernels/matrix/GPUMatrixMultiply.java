@@ -221,12 +221,17 @@ public class GPUMatrixMultiply {
 		for (int i = 0 ; i < COPY_THREADS ; ++i) {
 			bufferPool.add(ByteBuffer.allocate((int) lineSize));
 		}
-		final ExecutorService pool = Executors.newFixedThreadPool(4);
+		
+		// Copy first column async
+		final ExecutorService pool = Executors.newFixedThreadPool(3);
+		Future<?> colCopy = pool.submit(() -> copyColumns(bufferCreationPool, bufferPool, columns, B, 0, Math.min(columnPerSlice, bWidth)));
 		Future<?> resultCopy = CompletableFuture.completedFuture(null);
 		
-		// Iterate column per column
-		Future<?> colCopy = pool.submit(() -> copyColumns(bufferCreationPool, bufferPool, columns, B, 0, Math.min(columnPerSlice, bWidth)));
+		// Iterate columns per columns
 		for (int i = 0 ; i < bWidth ; i += Math.min(bWidth - i, columnPerSlice)) {
+			
+			// Copy the row async
+			Future<?> rowCopy = pool.submit(() -> copyRows(bufferCreationPool, bufferPool,lines, A, 0, Math.min(rowsPerSlice, aHeight)));
 			
 			// Number of columns this round
 			final int columnCount = Math.min(i + columnPerSlice, bWidth) - i;
@@ -235,19 +240,12 @@ public class GPUMatrixMultiply {
 			then = System.nanoTime();
 			Utils.ensureFinished(colCopy);
 			COPY_B_TIMER.addAndGet(System.nanoTime() - then);
-			final Future<?> fftColumns = pool.submit(() -> fftColumns(columns, BFFT, columnCount * bHeight));
+			fftColumns(columns, BFFT, columnCount * bHeight);
 			
-			// Start copying data for the next column iteration
 			final int startColumn = i;
-			colCopy = pool.submit(() -> {
-				Utils.ensureFinished(fftColumns); // Copy only when FFT is finished
-				final int from = startColumn + columnPerSlice;
-				final int to = from + columnPerSlice;
-				copyColumns(bufferCreationPool, bufferPool, columns, B, Math.min(from, bWidth), Math.min(to, bWidth));
-			});
+			colCopy = pool.submit(() -> copyColumns(bufferCreationPool, bufferPool, columns, B, Math.min(startColumn + columnPerSlice, bWidth), Math.min(startColumn + columnPerSlice * 2, bWidth)));
 			
-			// Copy the first row asynchronously
-			Future<?> rowCopy = pool.submit(() -> copyRows(bufferCreationPool, bufferPool,lines, A, 0, Math.min(rowsPerSlice, aHeight)));
+			// Iterate rows per rows
 			for (int j = 0 ; j < aHeight ; j += Math.min(aHeight - j, rowsPerSlice)) {
 				
 				// Number of rows this round
@@ -262,14 +260,7 @@ public class GPUMatrixMultiply {
 				
 				// Start copying data for the next row iteration
 				final int startRow = j;
-				rowCopy = pool.submit(() -> {
-					final int from = startRow + rowsPerSlice;
-					final int to = from + rowsPerSlice;
-					copyRows(bufferCreationPool, bufferPool, lines, A, Math.min(from, aHeight), Math.min(to, aHeight));
-				});
-				
-				// Make sure columns have been FFT'ed before starting the multiplication
-				Utils.ensureFinished(fftColumns);
+				rowCopy = pool.submit(() -> copyRows(bufferCreationPool, bufferPool, lines, A, Math.min(startRow + rowsPerSlice, aHeight), Math.min(startRow + rowsPerSlice * 2, aHeight)));
 				
 				// Perform multiplication on this section (columnCount * rowCount polynomial multiplications)
 				final int polynomialCount = columnCount * rowCount;
@@ -304,7 +295,6 @@ public class GPUMatrixMultiply {
 		System.out.println();
 		System.out.println("WAIT(COPY(A)) : " + COPY_A_TIMER.get() / 1000000 + " ms");
 		System.out.println("WAIT(COPY(B)) : " + COPY_B_TIMER.get() / 1000000 + " ms");
-//		System.out.println("WAIT(FFT(B)) : " + MUL_TIMER.get() / 1000000 + " ms");
 		System.out.println("WAIT(READ(RES)) : " + COPY_RES_TIMER.get() / 1000000 + " ms");
 		
 		pool.shutdown();
